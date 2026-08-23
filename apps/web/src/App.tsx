@@ -3,6 +3,7 @@ import { AuthProvider } from "./shell/AuthContext.js";
 import { ProtectedRoute } from "./shell/ProtectedRoute.js";
 import { ShellLayout } from "./shell/layout/ShellLayout.js";
 import { LoginPage } from "./shell/pages/Login.js";
+import { ResetPasswordPage } from "./shell/pages/ResetPassword.js";
 import { ReportsListPage } from "./shell/pages/ReportsList.js";
 import { ReportWizardPage } from "./shell/pages/ReportWizard.js";
 import { ReportDetailPage } from "./shell/pages/ReportDetail.js";
@@ -19,6 +20,7 @@ export function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/f/:token" element={<FieldWizard />} />
         <Route path="/verify/:reportId" element={<VerifyPage />} />
 

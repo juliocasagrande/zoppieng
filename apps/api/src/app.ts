@@ -10,6 +10,7 @@ import { accessoriesRouter } from "./modules/accessories/routes.js";
 import { reviewRouter } from "./modules/review/routes.js";
 import { bestPracticesRouter } from "./modules/bestPractices/routes.js";
 import { verifyRouter } from "./modules/verify/routes.js";
+import { registrationRouter } from "./modules/registration/routes.js";
 
 export function createApp() {
   const app = express();
@@ -28,6 +29,7 @@ export function createApp() {
   app.use("/review", reviewRouter);
   app.use("/best-practices", bestPracticesRouter);
   app.use("/verify", verifyRouter);
+  app.use("/register", registrationRouter);
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(err);

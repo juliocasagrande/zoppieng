@@ -1,5 +1,6 @@
 node_modules/
 corporate-ca-bundle.pem
+*.tsbuildinfo
 dist/
 build/
 .env
