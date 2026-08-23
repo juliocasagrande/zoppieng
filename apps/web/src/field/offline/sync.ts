@@ -6,7 +6,7 @@ import { getPhotosForToken, getProgress, saveProgress, updatePhoto, type LocalPh
 // while offline — pushes the final submission. Safe to call repeatedly
 // (idempotent): already-uploaded photos and already-submitted reports are
 // skipped.
-export async function syncToken(token: string): Promise<{ uploaded: number; submitted: boolean }> {
+export async function syncToken(token: string): Promise<{ uploaded: number; submitted: boolean; submitError: string | null }> {
   const photos = await getPhotosForToken(token);
   let uploaded = 0;
 
@@ -22,18 +22,25 @@ export async function syncToken(token: string): Promise<{ uploaded: number; subm
 
   const progress = await getProgress(token);
   let submitted = false;
+  let submitError: string | null = null;
   if (progress.status === "submitted") {
     submitted = true;
   } else if (progress.status === "draft" && progress.pendingSubmit) {
     const allUploaded = (await getPhotosForToken(token)).every((p) => p.uploaded);
     if (allUploaded) {
-      await submitReport(token);
-      await saveProgress({ ...progress, status: "submitted" });
-      submitted = true;
+      try {
+        await submitReport(token);
+        await saveProgress({ ...progress, status: "submitted" });
+        submitted = true;
+      } catch (err) {
+        // Data stays safe locally either way — pendingSubmit remains true, so
+        // the next sync (retry button / reconnect) tries again.
+        submitError = err instanceof Error ? err.message : "Falha ao enviar o laudo.";
+      }
     }
   }
 
-  return { uploaded, submitted };
+  return { uploaded, submitted, submitError };
 }
 
 async function uploadPhoto(token: string, photo: LocalPhoto): Promise<string> {
@@ -41,7 +48,7 @@ async function uploadPhoto(token: string, photo: LocalPhoto): Promise<string> {
   await fetch(signedUrl, { method: "PUT", body: photo.blob, headers: { "Content-Type": "image/jpeg" } });
   const confirmed = await publicApi.post(`/field/${token}/photos/confirm`, {
     path,
-    isExtra: photo.isExtra,
+    isExtra: photo.kind === "extra",
   });
   return confirmed.id;
 }
@@ -61,12 +68,9 @@ export async function submitReport(token: string): Promise<void> {
     testDurationSeconds: point.testDurationSeconds,
     testResult: point.testResult,
     notes: point.notes,
+    issueTags: point.issueTags,
     photoIds: photos.filter((p) => p.anchorTag === point.tag && p.uploaded && p.remotePhotoId).map((p) => p.remotePhotoId!),
   }));
 
-  await publicApi.post(`/field/${token}/submit`, {
-    siteAddress: progress.siteAddress,
-    siteIdentification: progress.siteIdentification,
-    anchorPoints,
-  });
+  await publicApi.post(`/field/${token}/submit`, { anchorPoints });
 }

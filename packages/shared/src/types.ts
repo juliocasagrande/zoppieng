@@ -138,6 +138,7 @@ export interface AnchorPoint {
   test_duration_seconds: number | null;
   test_result: PullTestResult | null;
   notes: string | null;
+  issue_tags: string[];
   sort_order: number;
 }
 

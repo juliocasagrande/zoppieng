@@ -11,23 +11,28 @@ export interface LocalAnchorPoint {
   testDurationSeconds: number | null;
   testResult: "aprovado" | "atencao" | "reprovado" | null;
   notes: string | null;
+  issueTags: string[];
 }
 
 export interface LocalProgress {
   token: string;
-  siteAddress: string;
-  siteIdentification: string;
   anchorPoints: LocalAnchorPoint[];
   status: "draft" | "submitted";
   pendingSubmit: boolean;
   updatedAt: number;
 }
 
+// "point"/"test" photos are the required evidence shots (anchor close-up,
+// gauge+timer); "extra" is the optional complementary photo (spec 4.4).
+// Server-side they all land in the same `photos` table — only "extra" maps
+// to the is_extra flag, the point/test distinction is a local UI grouping.
+export type LocalPhotoKind = "point" | "test" | "extra";
+
 export interface LocalPhoto {
   id: string;
   token: string;
   anchorTag: string | null;
-  isExtra: boolean;
+  kind: LocalPhotoKind;
   blob: Blob;
   uploaded: boolean;
   remotePhotoId?: string;
@@ -55,8 +60,6 @@ export async function getProgress(token: string): Promise<LocalProgress> {
   return (
     existing ?? {
       token,
-      siteAddress: "",
-      siteIdentification: "",
       anchorPoints: [],
       status: "draft",
       pendingSubmit: false,

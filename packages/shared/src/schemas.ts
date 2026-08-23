@@ -40,13 +40,15 @@ export const anchorPointSchema = z.object({
   testDurationSeconds: z.number().int().nonnegative().nullable().optional(),
   testResult: z.enum(["aprovado", "atencao", "reprovado"]).nullable().optional(),
   notes: z.string().nullable().optional(),
+  issueTags: z.array(z.string()).default([]),
   sortOrder: z.number().int().nonnegative().optional(),
 });
 export type AnchorPointInput = z.infer<typeof anchorPointSchema>;
 
+// Site address/identification are filled by the subscriber company at report
+// creation time (spec: the technician just captures data in the field, not
+// company/site paperwork) — the field submission never touches them.
 export const fieldSubmissionSchema = z.object({
-  siteAddress: z.string().optional(),
-  siteIdentification: z.string().optional(),
   anchorPoints: z.array(
     anchorPointSchema.extend({
       photoIds: z.array(z.string().uuid()).default([]),

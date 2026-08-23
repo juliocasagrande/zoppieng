@@ -36,6 +36,17 @@ export const REPORT_NAME_PRESETS = [
   "Laudo de Recertificação de Pontos de Ancoragem",
 ];
 
+// Checklist offered to the field technician for each anchor point (spec
+// section 4.4 "observações" + checkbox capture requested for the field flow).
+export const ANCHOR_ISSUE_TAGS = [
+  { value: "corrosao", label: "Corrosão visível" },
+  { value: "fixacao_solta", label: "Fixação solta ou com folga" },
+  { value: "trinca_concreto", label: "Trinca ou rachadura no concreto" },
+  { value: "impacto_deformacao", label: "Sinais de impacto ou deformação" },
+  { value: "rosca_danificada", label: "Rosca danificada" },
+  { value: "identificacao_ausente", label: "Etiqueta/identificação ausente ou ilegível" },
+] as const;
+
 export const USER_ROLE_LABELS: Record<string, string> = {
   zoppi_admin: "Zoppi Admin",
   zoppi_engineer: "Zoppi Engenheiro",

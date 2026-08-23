@@ -66,17 +66,6 @@ fieldRouter.post("/:token/submit", requireFieldToken, async (req, res) => {
   const input = parsed.data;
   const reportId = req.fieldLink!.reportId;
 
-  if (input.siteAddress || input.siteIdentification) {
-    await supabaseAdmin
-      .from("reports")
-      .update({
-        site_address: input.siteAddress,
-        site_identification: input.siteIdentification,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", reportId);
-  }
-
   for (const [index, point] of input.anchorPoints.entries()) {
     const { data: existing } = await supabaseAdmin
       .from("anchor_points")
@@ -97,19 +86,23 @@ fieldRouter.post("/:token/submit", requireFieldToken, async (req, res) => {
       test_duration_seconds: point.testDurationSeconds ?? null,
       test_result: point.testResult ?? null,
       notes: point.notes ?? null,
+      issue_tags: point.issueTags ?? [],
       sort_order: point.sortOrder ?? index,
     };
 
     let anchorPointId = existing?.id;
     if (existing) {
-      await supabaseAdmin.from("anchor_points").update(row).eq("id", existing.id);
+      const { error } = await supabaseAdmin.from("anchor_points").update(row).eq("id", existing.id);
+      if (error) return res.status(500).json({ error: `Falha ao salvar ${point.tag}: ${error.message}` });
     } else {
-      const { data: created } = await supabaseAdmin.from("anchor_points").insert(row).select("id").single();
+      const { data: created, error } = await supabaseAdmin.from("anchor_points").insert(row).select("id").single();
+      if (error) return res.status(500).json({ error: `Falha ao salvar ${point.tag}: ${error.message}` });
       anchorPointId = created?.id;
     }
 
     if (anchorPointId && point.photoIds.length) {
-      await supabaseAdmin.from("photos").update({ anchor_point_id: anchorPointId }).in("id", point.photoIds);
+      const { error } = await supabaseAdmin.from("photos").update({ anchor_point_id: anchorPointId }).in("id", point.photoIds);
+      if (error) return res.status(500).json({ error: `Falha ao vincular fotos de ${point.tag}: ${error.message}` });
     }
   }
 

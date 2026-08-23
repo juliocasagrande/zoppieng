@@ -1,4 +1,6 @@
-import type { AnchorPoint, Report, ReportParty } from "@zoppi/shared";
+import { ANCHOR_ISSUE_TAGS, type AnchorPoint, type Report, type ReportParty } from "@zoppi/shared";
+
+const ISSUE_TAG_LABELS: Record<string, string> = Object.fromEntries(ANCHOR_ISSUE_TAGS.map((t) => [t.value, t.label]));
 
 export interface ReportPdfData {
   report: Report;
@@ -72,6 +74,11 @@ function anchorPointBlock(point: ReportPdfData["anchorPoints"][number], index: n
           <tr><td>Resultado</td><td class="result result-${resultTone}">${point.test_result ? TEST_RESULT_LABEL[point.test_result] : "—"}</td></tr>
         </tbody>
       </table>
+      ${
+        point.issue_tags?.length
+          ? `<p class="issue-tags">${point.issue_tags.map((tag) => `<span class="issue-tag">${escapeHtml(ISSUE_TAG_LABELS[tag] ?? tag)}</span>`).join("")}</p>`
+          : ""
+      }
       ${point.notes ? `<p class="notes">${escapeHtml(point.notes)}</p>` : ""}
       <div class="photos">${photos}</div>
     </section>`;
@@ -112,6 +119,8 @@ export function renderReportHtml(data: ReportPdfData): string {
   .result-atencao { color: #E86020; font-weight: 600; }
   .result-reprovado { color: #D93636; font-weight: 600; }
   .notes { font-size: 9.5pt; color: #2D2D2D; margin-top: 3mm; }
+  .issue-tags { margin-top: 3mm; }
+  .issue-tag { display: inline-block; padding: 2px 6px; margin: 0 3mm 2mm 0; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.03em; color: #E86020; background: rgba(232,96,32,0.08); border: 1px solid rgba(232,96,32,0.16); }
   .photos { display: flex; flex-wrap: wrap; gap: 3mm; margin-top: 3mm; }
   .photo { width: 45mm; margin: 0; }
   .photo img { width: 100%; height: 32mm; object-fit: cover; border-radius: 4px; border: 1px solid #E8EAF0; }
