@@ -1,19 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AccessoryCatalogItem } from "@zoppi/shared";
 import { api } from "../../lib/api.js";
+import { useAuth } from "../AuthContext.js";
 import { Card } from "../../shared/components/Card.js";
 import { Button } from "../../shared/components/Button.js";
 import { FormField, inputStyle } from "../../shared/components/FormField.js";
 import { TechTag } from "../../shared/components/TechTag.js";
+import { Skeleton } from "../../shared/components/Skeleton.js";
 
 export function AccessoryCatalogPage() {
+  const { profile } = useAuth();
+  const canEdit = profile?.role === "zoppi_admin" || profile?.role === "company_admin";
   const [items, setItems] = useState<AccessoryCatalogItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("outro");
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   function reload() {
-    api.get("/accessories").then(setItems);
+    api
+      .get("/accessories")
+      .then(setItems)
+      .finally(() => setLoading(false));
   }
   useEffect(reload, []);
 
@@ -25,11 +34,24 @@ export function AccessoryCatalogPage() {
     reload();
   }
 
+  async function handleImageChange(item: AccessoryCatalogItem, file: File) {
+    setUploadingId(item.id);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const { path, signedUrl } = await api.post(`/accessories/${item.id}/image-upload-url`, { ext });
+      await fetch(signedUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type || "image/jpeg" } });
+      await api.patch(`/accessories/${item.id}`, { image_path: path });
+      reload();
+    } finally {
+      setUploadingId(null);
+    }
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <h1>Catálogo de acessórios</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>{showForm ? "Cancelar" : "Novo item customizado"}</Button>
+        {canEdit && <Button onClick={() => setShowForm((v) => !v)}>{showForm ? "Cancelar" : "Novo item customizado"}</Button>}
       </div>
 
       {showForm && (
@@ -54,18 +76,115 @@ export function AccessoryCatalogPage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
-        {items.map((item) => (
-          <Card key={item.id}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <strong>{item.name}</strong>
-              <TechTag label={item.scope === "zoppi_standard" ? "Padrão Zoppi" : "Customizado"} />
-            </div>
-            <div className="zp-eyebrow">{item.category}</div>
-            {item.spec_diameter_mm && <p style={{ fontSize: "0.85rem" }}>Diâmetro: {item.spec_diameter_mm}mm</p>}
-            {item.spec_load_capacity_kn && <p style={{ fontSize: "0.85rem" }}>Capacidade: {item.spec_load_capacity_kn}kN</p>}
-          </Card>
-        ))}
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => <AccessoryCardSkeleton key={i} />)
+          : items.map((item) => (
+              <AccessoryCard
+                key={item.id}
+                item={item}
+                canEdit={canEdit}
+                uploading={uploadingId === item.id}
+                onImageChange={(file) => handleImageChange(item, file)}
+              />
+            ))}
       </div>
     </div>
+  );
+}
+
+function AccessoryCardSkeleton() {
+  return (
+    <Card padding={0}>
+      <Skeleton height={140} radius={0} style={{ borderBottom: "1px solid var(--color-gray-light)" }} />
+      <div style={{ padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+          <Skeleton height={16} width="55%" />
+          <Skeleton height={18} width={70} radius={12} />
+        </div>
+        <Skeleton height={10} width="35%" style={{ marginBottom: 10 }} />
+        <Skeleton height={12} width="45%" style={{ marginBottom: 6 }} />
+        <Skeleton height={12} width="40%" />
+      </div>
+    </Card>
+  );
+}
+
+function AccessoryCard({
+  item,
+  canEdit,
+  uploading,
+  onImageChange,
+}: {
+  item: AccessoryCatalogItem;
+  canEdit: boolean;
+  uploading: boolean;
+  onImageChange: (file: File) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <Card padding={0}>
+      <div
+        style={{
+          position: "relative",
+          height: 140,
+          borderBottom: "1px solid var(--color-gray-light)",
+          background: "var(--color-gray-lightest, #f4f5f7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          cursor: canEdit ? "pointer" : "default",
+        }}
+        onClick={() => canEdit && fileInputRef.current?.click()}
+        title={canEdit ? "Clique para alterar a imagem" : undefined}
+      >
+        {item.image_url ? (
+          <img src={item.image_url} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <span style={{ color: "var(--color-gray-mid, #9aa0a6)", fontSize: "0.8rem" }}>
+            {uploading ? "Enviando..." : canEdit ? "Adicionar imagem" : "Sem imagem"}
+          </span>
+        )}
+        {uploading && item.image_url && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(255,255,255,0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.8rem",
+            }}
+          >
+            Enviando...
+          </div>
+        )}
+        {canEdit && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onImageChange(file);
+              e.target.value = "";
+            }}
+          />
+        )}
+      </div>
+
+      <div style={{ padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <strong>{item.name}</strong>
+          <TechTag label={item.scope === "zoppi_standard" ? "Padrão Zoppi" : "Customizado"} />
+        </div>
+        <div className="zp-eyebrow">{item.category}</div>
+        {item.spec_diameter_mm && <p style={{ fontSize: "0.85rem" }}>Diâmetro: {item.spec_diameter_mm}mm</p>}
+        {item.spec_load_capacity_kn && <p style={{ fontSize: "0.85rem" }}>Capacidade: {item.spec_load_capacity_kn}kN</p>}
+      </div>
+    </Card>
   );
 }

@@ -32,6 +32,9 @@ export type InstallationMode = "quimico" | "mecanico";
 
 export type PullTestResult = "aprovado" | "atencao" | "reprovado";
 
+// NBR 16325-1 anchor device classification.
+export type AnchorDeviceType = "A" | "A1" | "B" | "C" | "D";
+
 export type NotificationChannel = "email" | "whatsapp";
 
 export interface Company {
@@ -51,6 +54,11 @@ export interface Company {
   contact_role: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  logo_path: string | null;
+  brand_primary_color: string | null;
+  brand_secondary_color: string | null;
+  pdf_header_text: string | null;
+  pdf_footer_text: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +101,12 @@ export interface Report {
   report_number: string | null;
   pdf_url: string | null;
   labels_pdf_url: string | null;
+  field_executor_name: string | null;
+  field_executor_role: string | null;
+  test_equipment_manufacturer: string | null;
+  test_equipment_model: string | null;
+  test_equipment_serial: string | null;
+  test_equipment_capacity_kgf: number | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -123,6 +137,8 @@ export interface AccessoryCatalogItem {
   spec_load_capacity_kn: number | null;
   spec_notes: string | null;
   active: boolean;
+  image_path: string | null;
+  image_url: string | null;
 }
 
 export interface AnchorPoint {
@@ -131,10 +147,11 @@ export interface AnchorPoint {
   tag: string;
   accessory_id: string | null;
   installation_mode: InstallationMode | null;
+  device_type: AnchorDeviceType | null;
   anchor_depth_mm: number | null;
   distance_between_points_mm: number | null;
   test_instrument: string | null;
-  test_applied_load_kn: number | null;
+  test_applied_load_kgf: number | null;
   test_duration_seconds: number | null;
   test_result: PullTestResult | null;
   notes: string | null;

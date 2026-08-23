@@ -6,6 +6,13 @@ import { requireAuth, requireRole } from "../../middleware/auth.js";
 export const accessoriesRouter = Router();
 accessoriesRouter.use(requireAuth);
 
+function withImageUrl<T extends { image_path: string | null }>(item: T): T & { image_url: string | null } {
+  const image_url = item.image_path
+    ? supabaseAdmin.storage.from("accessory-images").getPublicUrl(item.image_path).data.publicUrl
+    : null;
+  return { ...item, image_url };
+}
+
 // Combined catalog: Zoppi standard items + this company's custom items.
 accessoriesRouter.get("/", async (req, res) => {
   const companyId = req.user!.companyId;
@@ -17,7 +24,7 @@ accessoriesRouter.get("/", async (req, res) => {
   }
   const { data, error } = await query.order("name");
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  res.json((data ?? []).map(withImageUrl));
 });
 
 accessoriesRouter.post("/", requireRole("zoppi_admin", "company_admin"), async (req, res) => {
@@ -42,7 +49,22 @@ accessoriesRouter.post("/", requireRole("zoppi_admin", "company_admin"), async (
     .select()
     .single();
   if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
+  res.status(201).json(withImageUrl(data));
+});
+
+// Returns a signed upload URL for the item's thumbnail; the client uploads
+// directly to Supabase Storage, then PATCHes { image_path: path } to attach it.
+accessoriesRouter.post("/:id/image-upload-url", requireRole("zoppi_admin", "company_admin"), async (req, res) => {
+  const { data: existing, error: fetchError } = await supabaseAdmin.from("accessory_catalog").select("*").eq("id", req.params.id).single();
+  if (fetchError || !existing) return res.status(404).json({ error: "Not found" });
+  if (req.user!.role === "company_admin" && existing.company_id !== req.user!.companyId) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const ext = (req.body?.ext as string) ?? "jpg";
+  const path = `${req.params.id}/${Date.now()}.${ext}`;
+  const { data, error } = await supabaseAdmin.storage.from("accessory-images").createSignedUploadUrl(path);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ path, token: data.token, signedUrl: data.signedUrl });
 });
 
 accessoriesRouter.patch("/:id", requireRole("zoppi_admin", "company_admin"), async (req, res) => {
@@ -58,7 +80,7 @@ accessoriesRouter.patch("/:id", requireRole("zoppi_admin", "company_admin"), asy
     .select()
     .single();
   if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+  res.json(withImageUrl(data));
 });
 
 // Certificates — support multi-page/multi-item: one certificate record with

@@ -61,10 +61,11 @@ export async function submitReport(token: string): Promise<void> {
     tag: point.tag,
     accessoryId: point.accessoryId,
     installationMode: point.installationMode,
+    deviceType: point.deviceType,
     anchorDepthMm: point.anchorDepthMm,
     distanceBetweenPointsMm: point.distanceBetweenPointsMm,
     testInstrument: point.testInstrument,
-    testAppliedLoadKn: point.testAppliedLoadKn,
+    testAppliedLoadKgf: point.testAppliedLoadKgf,
     testDurationSeconds: point.testDurationSeconds,
     testResult: point.testResult,
     notes: point.notes,
@@ -72,5 +73,13 @@ export async function submitReport(token: string): Promise<void> {
     photoIds: photos.filter((p) => p.anchorTag === point.tag && p.uploaded && p.remotePhotoId).map((p) => p.remotePhotoId!),
   }));
 
-  await publicApi.post(`/field/${token}/submit`, { anchorPoints });
+  await publicApi.post(`/field/${token}/submit`, {
+    fieldExecutorName: progress.fieldExecutorName,
+    fieldExecutorRole: progress.fieldExecutorRole,
+    testEquipmentManufacturer: progress.testEquipmentManufacturer,
+    testEquipmentModel: progress.testEquipmentModel,
+    testEquipmentSerial: progress.testEquipmentSerial,
+    testEquipmentCapacityKgf: progress.testEquipmentCapacityKgf,
+    anchorPoints,
+  });
 }

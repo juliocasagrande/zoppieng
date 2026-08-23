@@ -4,10 +4,11 @@ export interface LocalAnchorPoint {
   tag: string;
   accessoryId: string | null;
   installationMode: "quimico" | "mecanico" | null;
+  deviceType: "A" | "A1" | "B" | "C" | "D" | null;
   anchorDepthMm: number | null;
   distanceBetweenPointsMm: number | null;
   testInstrument: string | null;
-  testAppliedLoadKn: number | null;
+  testAppliedLoadKgf: number | null;
   testDurationSeconds: number | null;
   testResult: "aprovado" | "atencao" | "reprovado" | null;
   notes: string | null;
@@ -16,6 +17,12 @@ export interface LocalAnchorPoint {
 
 export interface LocalProgress {
   token: string;
+  fieldExecutorName: string | null;
+  fieldExecutorRole: string | null;
+  testEquipmentManufacturer: string | null;
+  testEquipmentModel: string | null;
+  testEquipmentSerial: string | null;
+  testEquipmentCapacityKgf: number | null;
   anchorPoints: LocalAnchorPoint[];
   status: "draft" | "submitted";
   pendingSubmit: boolean;
@@ -60,6 +67,12 @@ export async function getProgress(token: string): Promise<LocalProgress> {
   return (
     existing ?? {
       token,
+      fieldExecutorName: null,
+      fieldExecutorRole: null,
+      testEquipmentManufacturer: null,
+      testEquipmentModel: null,
+      testEquipmentSerial: null,
+      testEquipmentCapacityKgf: null,
       anchorPoints: [],
       status: "draft",
       pendingSubmit: false,

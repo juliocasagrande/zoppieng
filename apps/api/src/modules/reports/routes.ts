@@ -7,6 +7,7 @@ import { hasActiveModuleAccess } from "./accessGuard.js";
 import { nextReportNumber } from "./reportNumber.js";
 import { signFieldToken, hashToken } from "../../middleware/fieldToken.js";
 import { env } from "../../env.js";
+import { withRetry } from "../../lib/retry.js";
 
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth);
@@ -43,6 +44,70 @@ reportsRouter.get("/:id", async (req, res) => {
   res.json({ report, parties, anchorPoints, fieldLinks: links });
 });
 
+// Distinct contratante/contratada records used in this company's past reports,
+// so the wizard can offer them instead of retyping the same data every time.
+reportsRouter.get("/parties/saved", async (req, res) => {
+  const companyId = req.user!.companyId;
+  if (!companyId) return res.json({ contratante: [], contratada: [] });
+
+  const { data, error } = await supabaseAdmin
+    .from("report_parties")
+    .select("role, legal_name, cnpj, address, contact_name, contact_role, contact_phone, contact_email, reports!inner(company_id, created_at)")
+    .eq("reports.company_id", companyId);
+  if (error) return res.status(500).json({ error: error.message });
+
+  const rows = [...(data ?? [])].sort(
+    (a, b) => new Date((b.reports as any).created_at).getTime() - new Date((a.reports as any).created_at).getTime(),
+  );
+
+  const dedupe = (role: "contratante" | "contratada") => {
+    const seen = new Set<string>();
+    const result: Array<{ legalName: string; cnpj: string | null; address: string | null; contactName: string | null; contactRole: string | null; contactPhone: string | null; contactEmail: string | null }> = [];
+    for (const row of rows) {
+      if (row.role !== role || seen.has(row.legal_name)) continue;
+      seen.add(row.legal_name);
+      result.push({
+        legalName: row.legal_name,
+        cnpj: row.cnpj,
+        address: row.address,
+        contactName: row.contact_name,
+        contactRole: row.contact_role,
+        contactPhone: row.contact_phone,
+        contactEmail: row.contact_email,
+      });
+    }
+    return result;
+  };
+
+  res.json({ contratante: dedupe("contratante"), contratada: dedupe("contratada") });
+});
+
+// Distinct site (local do laudo) records used in this company's past reports,
+// so the wizard can offer them instead of retyping the same location every time.
+reportsRouter.get("/sites/saved", async (req, res) => {
+  const companyId = req.user!.companyId;
+  if (!companyId) return res.json([]);
+
+  const { data, error } = await supabaseAdmin
+    .from("reports")
+    .select("site_identification, site_address, created_at")
+    .eq("company_id", companyId)
+    .not("site_identification", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+
+  const seen = new Set<string>();
+  const result: { siteIdentification: string; siteAddress: string | null }[] = [];
+  for (const row of data ?? []) {
+    const identification = (row.site_identification ?? "").trim();
+    if (!identification || seen.has(identification)) continue;
+    seen.add(identification);
+    result.push({ siteIdentification: identification, siteAddress: row.site_address });
+  }
+
+  res.json(result);
+});
+
 reportsRouter.post("/", requireRole("zoppi_admin", "zoppi_engineer", "company_admin", "company_operational"), async (req, res) => {
   const parsed = createReportSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -65,27 +130,47 @@ reportsRouter.post("/", requireRole("zoppi_admin", "zoppi_engineer", "company_ad
 
   const reportNumber = await nextReportNumber();
 
-  const { data: report, error } = await supabaseAdmin
-    .from("reports")
-    .insert({
-      module_id: moduleId,
-      company_id: input.companyId,
-      name: input.name,
-      site_address: input.siteAddress ?? null,
-      site_identification: input.siteIdentification ?? null,
-      status: "draft",
-      report_number: reportNumber,
-      valid_until: validUntil.toISOString(),
-      created_by: req.user!.id,
-    })
-    .select()
-    .single();
-  if (error) return res.status(400).json({ error: error.message });
+  let report: { id: string; [key: string]: unknown };
+  try {
+    report = await withRetry(async () => {
+      const r = await supabaseAdmin
+        .from("reports")
+        .insert({
+          module_id: moduleId,
+          company_id: input.companyId,
+          name: input.name,
+          site_address: input.siteAddress ?? null,
+          site_identification: input.siteIdentification ?? null,
+          status: "draft",
+          report_number: reportNumber,
+          valid_until: validUntil.toISOString(),
+          created_by: req.user!.id,
+        })
+        .select()
+        .single();
+      if (r.error || !r.data) throw r.error ?? new Error("Failed to create report");
+      return r.data;
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Falha ao criar o laudo.";
+    return res.status(502).json({ error: message });
+  }
 
-  await supabaseAdmin.from("report_parties").insert([
-    { report_id: report.id, role: "contratante", ...toPartyRow(input.contratante) },
-    { report_id: report.id, role: "contratada", ...toPartyRow(input.contratada) },
-  ]);
+  try {
+    await withRetry(async () => {
+      const { error: partiesError } = await supabaseAdmin.from("report_parties").insert([
+        { report_id: report.id, role: "contratante", ...toPartyRow(input.contratante) },
+        { report_id: report.id, role: "contratada", ...toPartyRow(input.contratada) },
+      ]);
+      if (partiesError) throw partiesError;
+    });
+  } catch (partiesError) {
+    // Don't leave a report behind with no contratante/contratada — that's a
+    // broken, unusable draft the UI has no way to repair.
+    await supabaseAdmin.from("reports").delete().eq("id", report.id);
+    const message = partiesError instanceof Error ? partiesError.message : "Falha ao salvar as empresas do laudo.";
+    return res.status(502).json({ error: `Não foi possível salvar as empresas do laudo, tente novamente. (${message})` });
+  }
 
   res.status(201).json(report);
 });

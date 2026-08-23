@@ -33,10 +33,11 @@ export const anchorPointSchema = z.object({
   tag: z.string().min(1),
   accessoryId: z.string().uuid().nullable().optional(),
   installationMode: z.enum(["quimico", "mecanico"]).nullable().optional(),
+  deviceType: z.enum(["A", "A1", "B", "C", "D"]).nullable().optional(),
   anchorDepthMm: z.number().nonnegative().nullable().optional(),
   distanceBetweenPointsMm: z.number().nonnegative().nullable().optional(),
   testInstrument: z.string().nullable().optional(),
-  testAppliedLoadKn: z.number().nonnegative().nullable().optional(),
+  testAppliedLoadKgf: z.number().nonnegative().nullable().optional(),
   testDurationSeconds: z.number().int().nonnegative().nullable().optional(),
   testResult: z.enum(["aprovado", "atencao", "reprovado"]).nullable().optional(),
   notes: z.string().nullable().optional(),
@@ -47,8 +48,16 @@ export type AnchorPointInput = z.infer<typeof anchorPointSchema>;
 
 // Site address/identification are filled by the subscriber company at report
 // creation time (spec: the technician just captures data in the field, not
-// company/site paperwork) — the field submission never touches them.
+// company/site paperwork) — the field submission never touches them. The
+// test equipment and who performed the field work are captured once per
+// report (one dynamometer covers every point in a visit), not per point.
 export const fieldSubmissionSchema = z.object({
+  fieldExecutorName: z.string().nullable().optional(),
+  fieldExecutorRole: z.string().nullable().optional(),
+  testEquipmentManufacturer: z.string().nullable().optional(),
+  testEquipmentModel: z.string().nullable().optional(),
+  testEquipmentSerial: z.string().nullable().optional(),
+  testEquipmentCapacityKgf: z.number().nonnegative().nullable().optional(),
   anchorPoints: z.array(
     anchorPointSchema.extend({
       photoIds: z.array(z.string().uuid()).default([]),

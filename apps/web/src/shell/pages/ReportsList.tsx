@@ -6,6 +6,7 @@ import { api } from "../../lib/api.js";
 import { Card } from "../../shared/components/Card.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.js";
 import { Button } from "../../shared/components/Button.js";
+import { Skeleton } from "../../shared/components/Skeleton.js";
 
 export function ReportsListPage() {
   const [reports, setReports] = useState<(Report & { companies?: { legal_name: string } })[]>([]);
@@ -28,7 +29,17 @@ export function ReportsListPage() {
       </div>
 
       {loading ? (
-        <p>Carregando…</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <Skeleton height={16} width="40%" style={{ marginBottom: 8 }} />
+                <Skeleton height={11} width="25%" />
+              </div>
+              <Skeleton height={22} width={90} radius={12} />
+            </Card>
+          ))}
+        </div>
       ) : reports.length === 0 ? (
         <Card>
           <p>Nenhum laudo ainda. Crie o primeiro laudo para gerar o link de campo.</p>

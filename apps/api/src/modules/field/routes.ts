@@ -79,10 +79,11 @@ fieldRouter.post("/:token/submit", requireFieldToken, async (req, res) => {
       tag: point.tag,
       accessory_id: point.accessoryId ?? null,
       installation_mode: point.installationMode ?? null,
+      device_type: point.deviceType ?? null,
       anchor_depth_mm: point.anchorDepthMm ?? null,
       distance_between_points_mm: point.distanceBetweenPointsMm ?? null,
       test_instrument: point.testInstrument ?? null,
-      test_applied_load_kn: point.testAppliedLoadKn ?? null,
+      test_applied_load_kgf: point.testAppliedLoadKgf ?? null,
       test_duration_seconds: point.testDurationSeconds ?? null,
       test_result: point.testResult ?? null,
       notes: point.notes ?? null,
@@ -106,7 +107,19 @@ fieldRouter.post("/:token/submit", requireFieldToken, async (req, res) => {
     }
   }
 
-  await supabaseAdmin.from("reports").update({ status: "in_review", updated_at: new Date().toISOString() }).eq("id", reportId);
+  await supabaseAdmin
+    .from("reports")
+    .update({
+      status: "in_review",
+      field_executor_name: input.fieldExecutorName ?? null,
+      field_executor_role: input.fieldExecutorRole ?? null,
+      test_equipment_manufacturer: input.testEquipmentManufacturer ?? null,
+      test_equipment_model: input.testEquipmentModel ?? null,
+      test_equipment_serial: input.testEquipmentSerial ?? null,
+      test_equipment_capacity_kgf: input.testEquipmentCapacityKgf ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", reportId);
   await supabaseAdmin.from("report_field_links").update({ status: "used", used_at: new Date().toISOString() }).eq("id", req.fieldLink!.id);
 
   const { data: report } = await supabaseAdmin.from("reports").select("name, companies(contact_email)").eq("id", reportId).single();

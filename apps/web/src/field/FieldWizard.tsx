@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ANCHOR_ISSUE_TAGS } from "@zoppi/shared";
+import { ANCHOR_DEVICE_TYPE_LABELS, ANCHOR_ISSUE_TAGS } from "@zoppi/shared";
 import { publicApi } from "../lib/api.js";
 import { Button } from "../shared/components/Button.js";
 import { Card } from "../shared/components/Card.js";
 import { FormField, inputStyle } from "../shared/components/FormField.js";
 import { Alert } from "../shared/components/Alert.js";
+import { Skeleton } from "../shared/components/Skeleton.js";
 import { useOnlineStatus } from "./useOnlineStatus.js";
 import {
   addPhoto,
@@ -32,10 +33,11 @@ function emptyPoint(tag: string): LocalAnchorPoint {
     tag,
     accessoryId: null,
     installationMode: null,
+    deviceType: null,
     anchorDepthMm: null,
     distanceBetweenPointsMm: null,
     testInstrument: null,
-    testAppliedLoadKn: null,
+    testAppliedLoadKgf: null,
     testDurationSeconds: null,
     testResult: null,
     notes: null,
@@ -43,12 +45,13 @@ function emptyPoint(tag: string): LocalAnchorPoint {
   };
 }
 
-type Step = "welcome" | number | "review" | "done";
+type Step = "welcome" | "equipment" | number | "review" | "done";
 
 function stepIndex(step: Step, totalPoints: number): number {
   if (step === "welcome") return 0;
-  if (step === "review" || step === "done") return totalPoints + 1;
-  return step + 1;
+  if (step === "equipment") return 1;
+  if (step === "review" || step === "done") return totalPoints + 2;
+  return step + 2;
 }
 
 export function FieldWizard() {
@@ -122,12 +125,19 @@ export function FieldWizard() {
   if (!welcome || !progress) {
     return (
       <FieldShell>
-        <p>Carregando…</p>
+        <Skeleton height={8} width="100%" radius={4} style={{ marginBottom: 24 }} />
+        <Skeleton height={26} width="70%" style={{ marginBottom: 8 }} />
+        <Skeleton height={12} width="40%" style={{ marginBottom: 20 }} />
+        <Card padding={20}>
+          <Skeleton height={13} width="30%" style={{ marginBottom: 12 }} />
+          <Skeleton height={14} style={{ marginBottom: 8 }} />
+          <Skeleton height={14} width="80%" />
+        </Card>
       </FieldShell>
     );
   }
 
-  const totalSteps = progress.anchorPoints.length + 2; // welcome + points + review
+  const totalSteps = progress.anchorPoints.length + 3; // welcome + equipment + points + review
   const currentIndex = stepIndex(step, progress.anchorPoints.length);
 
   if (step === "welcome") {
@@ -156,9 +166,72 @@ export function FieldWizard() {
         )}
         <div style={{ height: 80 }} />
         <BottomBar>
-          <Button style={{ width: "100%" }} onClick={() => (progress.anchorPoints.length > 0 ? setStep(0) : addPoint())}>
+          <Button style={{ width: "100%" }} onClick={() => setStep("equipment")}>
             Começar
           </Button>
+        </BottomBar>
+      </FieldShell>
+    );
+  }
+
+  if (step === "equipment") {
+    function updateProgress(patch: Partial<LocalProgress>) {
+      persist({ ...progress!, ...patch });
+    }
+
+    return (
+      <FieldShell>
+        <StepProgress current={currentIndex} total={totalSteps} label="Equipamento e responsável" />
+        <h1>Antes de começar</h1>
+        <p className="zp-eyebrow" style={{ marginBottom: 12 }}>
+          Esses dados aparecem uma única vez no laudo — não é preciso repetir por ponto.
+        </p>
+
+        <SectionLabel n={1} title="Quem está preenchendo" />
+        <Card padding={20} style={{ marginTop: 8 }}>
+          <FormField label="Seu nome">
+            <input style={inputStyle} value={progress.fieldExecutorName ?? ""} onChange={(e) => updateProgress({ fieldExecutorName: e.target.value })} />
+          </FormField>
+          <FormField label="Seu cargo/função">
+            <input style={inputStyle} value={progress.fieldExecutorRole ?? ""} onChange={(e) => updateProgress({ fieldExecutorRole: e.target.value })} />
+          </FormField>
+        </Card>
+
+        <SectionLabel n={2} title="Instrumento de teste (dinamômetro)" />
+        <Card padding={20} style={{ marginTop: 8 }}>
+          <FormField label="Fabricante">
+            <input
+              style={inputStyle}
+              value={progress.testEquipmentManufacturer ?? ""}
+              onChange={(e) => updateProgress({ testEquipmentManufacturer: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Modelo">
+            <input style={inputStyle} value={progress.testEquipmentModel ?? ""} onChange={(e) => updateProgress({ testEquipmentModel: e.target.value })} />
+          </FormField>
+          <FormField label="Número de série">
+            <input style={inputStyle} value={progress.testEquipmentSerial ?? ""} onChange={(e) => updateProgress({ testEquipmentSerial: e.target.value })} />
+          </FormField>
+          <FormField label="Capacidade do instrumento (kgf)">
+            <input
+              style={inputStyle}
+              type="number"
+              inputMode="decimal"
+              value={progress.testEquipmentCapacityKgf ?? ""}
+              onChange={(e) => updateProgress({ testEquipmentCapacityKgf: e.target.value ? Number(e.target.value) : null })}
+            />
+          </FormField>
+        </Card>
+
+        <div style={{ height: 96 }} />
+
+        <BottomBar>
+          <Button style={{ width: "100%" }} onClick={() => (progress.anchorPoints.length > 0 ? setStep(0) : addPoint())}>
+            Continuar
+          </Button>
+          <div style={{ marginTop: 8 }}>
+            <TextButton onClick={() => setStep("welcome")}>← Voltar</TextButton>
+          </div>
         </BottomBar>
       </FieldShell>
     );
@@ -247,6 +320,49 @@ export function FieldWizard() {
           />
 
           <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
+            Tipo de dispositivo (NBR 16325-1)
+          </div>
+          <select
+            style={inputStyle}
+            value={point.deviceType ?? ""}
+            onChange={(e) => updatePoint({ deviceType: (e.target.value || null) as LocalAnchorPoint["deviceType"] })}
+          >
+            <option value="">Selecione…</option>
+            {Object.entries(ANCHOR_DEVICE_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+
+          <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
+            Carga aplicada no teste
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              style={{ ...inputStyle, flex: 1 }}
+              type="number"
+              inputMode="decimal"
+              placeholder="Ex.: 1500"
+              value={point.testAppliedLoadKgf ?? ""}
+              onChange={(e) => updatePoint({ testAppliedLoadKgf: e.target.value ? Number(e.target.value) : null })}
+            />
+            <span style={{ alignSelf: "center", fontWeight: 600, color: "var(--color-gray)" }}>kgf</span>
+          </div>
+          <div style={{ fontSize: "0.78rem", color: "var(--color-gray)", marginTop: 4 }}>Carga mínima exigida pela NR35/NBR 16325-1: 1.500 kgf.</div>
+
+          <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
+            Tempo de teste (segundos)
+          </div>
+          <input
+            style={inputStyle}
+            type="number"
+            inputMode="numeric"
+            value={point.testDurationSeconds ?? ""}
+            onChange={(e) => updatePoint({ testDurationSeconds: e.target.value ? Number(e.target.value) : null })}
+          />
+
+          <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
             Resultado do teste
           </div>
           <SegmentedControl
@@ -320,27 +436,6 @@ export function FieldWizard() {
                 onChange={(e) => updatePoint({ distanceBetweenPointsMm: e.target.value ? Number(e.target.value) : null })}
               />
             </FormField>
-            <FormField label="Instrumento de teste">
-              <input style={inputStyle} value={point.testInstrument ?? ""} onChange={(e) => updatePoint({ testInstrument: e.target.value })} />
-            </FormField>
-            <FormField label="Carga aplicada (kN)">
-              <input
-                style={inputStyle}
-                type="number"
-                inputMode="decimal"
-                value={point.testAppliedLoadKn ?? ""}
-                onChange={(e) => updatePoint({ testAppliedLoadKn: e.target.value ? Number(e.target.value) : null })}
-              />
-            </FormField>
-            <FormField label="Tempo de teste (segundos)">
-              <input
-                style={inputStyle}
-                type="number"
-                inputMode="numeric"
-                value={point.testDurationSeconds ?? ""}
-                onChange={(e) => updatePoint({ testDurationSeconds: e.target.value ? Number(e.target.value) : null })}
-              />
-            </FormField>
           </Card>
         </details>
 
@@ -351,7 +446,7 @@ export function FieldWizard() {
             {isLastPoint ? "Ir para revisão" : "Próximo ponto"}
           </Button>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <TextButton onClick={() => setStep(step === 0 ? "welcome" : step - 1)}>← Voltar</TextButton>
+            <TextButton onClick={() => setStep(step === 0 ? "equipment" : step - 1)}>← Voltar</TextButton>
             {isLastPoint && <TextButton onClick={addPoint}>+ Adicionar outro ponto</TextButton>}
           </div>
         </BottomBar>
@@ -365,8 +460,22 @@ export function FieldWizard() {
         <StepProgress current={currentIndex} total={totalSteps} label="Revisão final" />
         <h1>Revisão final</h1>
         <p className="zp-eyebrow" style={{ marginBottom: 12 }}>
-          Confira os pontos antes de enviar. Toque em "Editar" para corrigir algo.
+          Confira os dados antes de enviar. Toque em "Editar" para corrigir algo.
         </p>
+
+        <Card padding={16} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div>
+            <strong>Equipamento e responsável</strong>
+            <div className="zp-eyebrow">
+              {progress.fieldExecutorName || "Executante não informado"}
+              {progress.testEquipmentManufacturer ? ` · ${progress.testEquipmentManufacturer} ${progress.testEquipmentModel ?? ""}`.trim() : ""}
+            </div>
+          </div>
+          <Button variant="outline" onClick={() => setStep("equipment")}>
+            Editar
+          </Button>
+        </Card>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {progress.anchorPoints.map((p, i) => {
             const count = photos.filter((ph) => ph.anchorTag === p.tag).length;

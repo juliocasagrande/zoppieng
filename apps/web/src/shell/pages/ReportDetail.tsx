@@ -8,6 +8,7 @@ import { Card } from "../../shared/components/Card.js";
 import { Button } from "../../shared/components/Button.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.js";
 import { Alert } from "../../shared/components/Alert.js";
+import { Skeleton } from "../../shared/components/Skeleton.js";
 
 interface ReportDetailResponse {
   report: Report;
@@ -68,7 +69,41 @@ export function ReportDetailPage() {
     }
   }
 
-  if (!data) return <p>Carregando…</p>;
+  if (!data) {
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+          <div>
+            <Skeleton height={30} width={260} style={{ marginBottom: 8 }} />
+            <Skeleton height={11} width={120} />
+          </div>
+          <Skeleton height={22} width={90} radius={12} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+          <Card>
+            <Skeleton height={13} width="40%" style={{ marginBottom: 10 }} />
+            <Skeleton height={16} width="70%" />
+          </Card>
+          <Card>
+            <Skeleton height={13} width="40%" style={{ marginBottom: 10 }} />
+            <Skeleton height={16} width="70%" />
+          </Card>
+        </div>
+        <Card style={{ marginBottom: 24 }}>
+          <Skeleton height={13} width="30%" style={{ marginBottom: 10 }} />
+          <Skeleton height={13} width="80%" style={{ marginBottom: 14 }} />
+          <div style={{ display: "flex", gap: 12 }}>
+            <Skeleton height={38} width={160} />
+            <Skeleton height={38} width={180} />
+          </div>
+        </Card>
+        <Card>
+          <Skeleton height={13} width="35%" style={{ marginBottom: 14 }} />
+          <Skeleton height={14} width="60%" />
+        </Card>
+      </div>
+    );
+  }
   const { report, parties, anchorPoints } = data;
   const contratante = parties.find((p) => p.role === "contratante");
   const contratada = parties.find((p) => p.role === "contratada");
@@ -121,6 +156,31 @@ export function ReportDetailPage() {
           </div>
         )}
       </Card>
+
+      {(report.field_executor_name || report.test_equipment_manufacturer) && (
+        <Card style={{ marginBottom: 24 }}>
+          <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Equipamento e responsável em campo</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            <div>
+              <div className="zp-eyebrow">Executante</div>
+              <p style={{ margin: "2px 0 0" }}>
+                {report.field_executor_name ?? "—"}
+                {report.field_executor_role ? ` — ${report.field_executor_role}` : ""}
+              </p>
+            </div>
+            <div>
+              <div className="zp-eyebrow">Instrumento de teste</div>
+              <p style={{ margin: "2px 0 0" }}>
+                {report.test_equipment_manufacturer ?? "—"} {report.test_equipment_model ?? ""}
+              </p>
+              <p style={{ margin: "2px 0 0", color: "var(--color-gray)" }}>
+                {report.test_equipment_serial ? `Nº série ${report.test_equipment_serial}` : ""}
+                {report.test_equipment_capacity_kgf ? ` · Capacidade ${report.test_equipment_capacity_kgf} kgf` : ""}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card style={{ marginBottom: 24 }}>
         <h3 style={{ fontSize: "0.95rem", marginBottom: 12 }}>Pontos de ancoragem ({anchorPoints.length})</h3>

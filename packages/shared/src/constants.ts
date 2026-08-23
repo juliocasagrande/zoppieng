@@ -30,6 +30,20 @@ export const PULL_TEST_RESULT_TONE: Record<string, "success" | "warning" | "dang
   reprovado: "danger",
 };
 
+// NBR 16325-1 device classification, offered to the field technician per
+// anchor point (spec: laudo must state the device type tested, e.g. "Tipo A1").
+export const ANCHOR_DEVICE_TYPE_LABELS: Record<string, string> = {
+  A: "Tipo A — ponto de ancoragem fixo simples",
+  A1: "Tipo A1 — olhal/estrutura rígida certificada",
+  B: "Tipo B — múltiplos pontos fixos interligados",
+  C: "Tipo C — linha de vida flexível horizontal",
+  D: "Tipo D — trilho rígido horizontal",
+};
+
+// Fallback PDF brand — used whenever a company hasn't set its own logo/colors.
+export const DEFAULT_BRAND_PRIMARY_COLOR = "#151F5C";
+export const DEFAULT_BRAND_SECONDARY_COLOR = "#E86020";
+
 export const REPORT_NAME_PRESETS = [
   "Laudo de Inspeção de Pontos de Ancoragem",
   "Laudo de Instalação de Linha de Vida",

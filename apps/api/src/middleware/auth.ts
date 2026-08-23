@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import type { UserRole } from "@zoppi/shared";
 import { supabaseAdmin, supabaseAsUser } from "../lib/supabase.js";
+import { withRetry } from "../lib/retry.js";
 
 export interface AuthedUser {
   id: string;
@@ -30,18 +31,32 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
   const accessToken = header.slice("Bearer ".length);
 
-  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-  if (authError || !authData.user) {
+  let authData: Awaited<ReturnType<typeof supabaseAdmin.auth.getUser>>["data"] | null = null;
+  try {
+    const result = await withRetry(async () => {
+      const r = await supabaseAdmin.auth.getUser(accessToken);
+      if (r.error || !r.data.user) throw r.error ?? new Error("No user");
+      return r;
+    });
+    authData = result.data;
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired session" });
+  }
+  if (!authData?.user) {
     return res.status(401).json({ error: "Invalid or expired session" });
   }
 
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from("users")
-    .select("id, company_id, role, full_name, email, active")
-    .eq("id", authData.user.id)
-    .single();
-
-  if (profileError || !profile || !profile.active) {
+  let profile: { id: string; company_id: string | null; role: UserRole; full_name: string; email: string; active: boolean } | null = null;
+  try {
+    profile = await withRetry(async () => {
+      const r = await supabaseAdmin.from("users").select("id, company_id, role, full_name, email, active").eq("id", authData!.user.id).single();
+      if (r.error || !r.data) throw r.error ?? new Error("No profile");
+      return r.data;
+    });
+  } catch {
+    return res.status(403).json({ error: "User has no active platform profile" });
+  }
+  if (!profile.active) {
     return res.status(403).json({ error: "User has no active platform profile" });
   }
 

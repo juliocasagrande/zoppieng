@@ -1,5 +1,17 @@
 import "dotenv/config";
 
+// Local-dev-only escape hatch for corporate SSL-inspection proxies (e.g.
+// Forcepoint) that route every HTTPS connection through a rotating fleet of
+// inspection nodes, each minting its own intermediate cert that's never
+// included in the handshake — Node can't build a trust chain to it no matter
+// how many times we retry. Never applies outside development, and only when
+// explicitly opted in — this must never reach production, where no such
+// proxy exists and full TLS verification stays on.
+if (process.env.NODE_ENV !== "production" && process.env.DEV_INSECURE_TLS === "true") {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  console.warn("[dev] DEV_INSECURE_TLS=true — TLS certificate verification is DISABLED for this process (local dev only).");
+}
+
 function required(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
   if (value === undefined) {
