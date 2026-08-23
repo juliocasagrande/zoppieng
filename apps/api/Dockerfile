@@ -2,7 +2,7 @@
 # can COPY the workspace packages it needs. Also used for the jobs-worker
 # service — same image, different Railway "Start Command"
 # (node dist/jobs/worker.js instead of the default CMD).
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 
 # Puppeteer needs a real Chromium + its shared libs; we skip Puppeteer's own
 # download and point it at the apt-installed binary instead (more reliable
