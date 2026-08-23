@@ -1,0 +1,87 @@
+/*
+ * Zoppi Segurança — design tokens.
+ * Single source of truth for color/type/spacing across shell + field flow.
+ * Never hardcode these values elsewhere — reference the variables.
+ */
+:root {
+  /* Brand */
+  --color-navy: #1d2b7f;
+  --color-navy-dark: #151f5c;
+  --color-navy-light: #2e3fa0;
+  --color-orange: #e86020;
+  --color-orange-hover: #cf521a;
+
+  /* Semantic */
+  --color-success: #2e9e58;
+  --color-warning: #e86020;
+  --color-danger: #d93636;
+  --color-danger-hover: #b82c2c;
+  --color-info: #1d2b7f;
+
+  /* Neutrals */
+  --color-white: #ffffff;
+  --color-off-white: #f4f5f8;
+  --color-gray-light: #e8eaf0;
+  --color-gray: #8892a4;
+  --color-text: #2d2d2d;
+  --color-dark: #1a1c2e;
+
+  /* Typography */
+  --font-display: "Barlow Condensed", Arial, sans-serif;
+  --font-body: "Barlow", Arial, sans-serif;
+  --font-label: "Inter", Arial, sans-serif;
+
+  /* Shape */
+  --radius: 4px;
+  --shadow: 0 8px 32px rgba(29, 43, 127, 0.12);
+  --shadow-elevated: 0 20px 60px rgba(29, 43, 127, 0.18);
+
+  /* Layout */
+  --sidebar-width: 240px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-off-white);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+.zp-heading {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-dark);
+  margin: 0 0 12px;
+}
+
+.zp-eyebrow {
+  font-family: var(--font-label);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 0.72rem;
+  color: var(--color-gray);
+}
+
+a {
+  color: var(--color-navy);
+}
+
+button {
+  font-family: inherit;
+}

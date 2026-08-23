@@ -1,0 +1,35 @@
+{
+  "name": "@zoppi/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env NODE_EXTRA_CA_CERTS=../../corporate-ca-bundle.pem tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "seed": "cross-env NODE_EXTRA_CA_CERTS=../../corporate-ca-bundle.pem tsx src/scripts/seed.ts",
+    "jobs:worker": "cross-env NODE_EXTRA_CA_CERTS=../../corporate-ca-bundle.pem tsx src/jobs/worker.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "@zoppi/shared": "*",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-async-errors": "^3.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "puppeteer": "^23.6.0",
+    "qrcode": "^1.5.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.7.5",
+    "@types/qrcode": "^1.5.5",
+    "cross-env": "^10.1.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}
