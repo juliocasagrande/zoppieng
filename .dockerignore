@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dist
+**/build
+.env
+**/.env
+.git
+corporate-ca-bundle.pem
+*.tsbuildinfo
+.claude

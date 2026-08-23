@@ -9,7 +9,9 @@ function required(name: string, fallback?: string): string {
 }
 
 export const env = {
-  apiPort: Number(process.env.API_PORT ?? 4000),
+  // Railway (and most PaaS) inject PORT and expect the app to bind to it;
+  // API_PORT stays as the local-dev override.
+  apiPort: Number(process.env.PORT ?? process.env.API_PORT ?? 4000),
   apiBaseUrl: process.env.API_BASE_URL ?? "http://localhost:4000",
 
   supabaseUrl: process.env.SUPABASE_URL ?? "",
