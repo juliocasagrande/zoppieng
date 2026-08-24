@@ -72,6 +72,45 @@ export interface AppUser {
   phone: string | null;
   crea_number: string | null;
   active: boolean;
+  can_create_reports: boolean;
+  signature_path?: string | null;
+  signature_url?: string | null;
+}
+
+export type AttachmentCategory =
+  | "art"
+  | "calibration_certificate"
+  | "site_plan"
+  | "datasheet"
+  | "project_memorial"
+  | "lab_report"
+  | "point_labels"
+  | "other";
+
+export interface ReportAttachment {
+  id: string;
+  report_id: string;
+  category: AttachmentCategory;
+  label: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export interface CnpjLookupResult {
+  cnpj: string;
+  legalName: string;
+  tradeName: string | null;
+  address: string;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  district: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  phone: string | null;
+  email: string | null;
 }
 
 export interface ModuleSubscription {
@@ -87,26 +126,97 @@ export interface ModuleSubscription {
   cancelled_at: string | null;
 }
 
+export interface SubscriptionPlan {
+  moduleId: string;
+  moduleSlug: string;
+  moduleName: string;
+  planCode: string;
+  planName: string;
+  monthlyAmountCents: number;
+}
+
+export type VerificationSituation = "C" | "NC" | "NA";
+
+export interface VerificationCheckItem {
+  label: string;
+  situation: VerificationSituation | null;
+  observation: string | null;
+}
+
+export interface ReportComponent {
+  item: string;
+  manufacturerModel: string | null;
+  material: string | null;
+  lotSerial: string | null;
+  document: string | null;
+}
+
+export type NonConformitySeverity = "atencao" | "critica";
+export type NonConformityStatus = "aberta" | "em_andamento" | "resolvida";
+
+export interface NonConformity {
+  id: string;
+  pointTag: string | null;
+  description: string;
+  severity: NonConformitySeverity;
+  actionRequired: string | null;
+  status: NonConformityStatus;
+}
+
+export interface RevisionEntry {
+  revision: string;
+  date: string | null;
+  responsible: string | null;
+  description: string | null;
+}
+
+export interface InspectionHistoryEntry {
+  date: string | null;
+  pointOrSystem: string | null;
+  responsible: string | null;
+  result: string | null;
+  documentNote: string | null;
+}
+
 export interface Report {
   id: string;
   module_id: string;
   company_id: string;
   name: string;
+  description: string | null;
   status: ReportStatus;
   site_address: string | null;
   site_identification: string | null;
+  site_area: string | null;
+  os_contract_number: string | null;
+  survey_date: string | null;
   assigned_engineer_id: string | null;
   issued_at: string | null;
   valid_until: string | null;
   report_number: string | null;
+  art_number: string | null;
+  revision: string;
   pdf_url: string | null;
   labels_pdf_url: string | null;
   field_executor_name: string | null;
   field_executor_role: string | null;
+  field_executor_accepted_at: string | null;
+  accompanying_client_name: string | null;
+  accompanying_client_role: string | null;
+  accompanying_client_accepted_at: string | null;
   test_equipment_manufacturer: string | null;
   test_equipment_model: string | null;
   test_equipment_serial: string | null;
   test_equipment_capacity_kgf: number | null;
+  objective_text: string | null;
+  scope_text: string | null;
+  recommendations_text: string | null;
+  conclusion_text: string | null;
+  verification_checks: VerificationCheckItem[];
+  components: ReportComponent[];
+  nonconformities: NonConformity[];
+  revisions: RevisionEntry[];
+  inspection_history: InspectionHistoryEntry[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -141,19 +251,53 @@ export interface AccessoryCatalogItem {
   image_url: string | null;
 }
 
+// The four field-wizard selection fields backed by a customizable,
+// image-illustrated catalog (see field_option_catalog table). "device_type"
+// still defaults to the NBR 16325-1 A/A1/B/C/D classification as Zoppi's
+// standard entries, but the column is free text so companies can add their
+// own device categories too.
+export type FieldOptionKey = "device_type" | "system_type" | "support_structure" | "environment_condition";
+
+export interface FieldOptionCatalogItem {
+  id: string;
+  field_key: FieldOptionKey;
+  scope: AccessoryScope;
+  company_id: string | null;
+  value: string;
+  label: string;
+  image_path: string | null;
+  image_url: string | null;
+  sort_order: number;
+  active: boolean;
+}
+
 export interface AnchorPoint {
   id: string;
   report_id: string;
   tag: string;
   accessory_id: string | null;
   installation_mode: InstallationMode | null;
-  device_type: AnchorDeviceType | null;
+  device_type: string | null;
   anchor_depth_mm: number | null;
   distance_between_points_mm: number | null;
   test_instrument: string | null;
+  test_reference_load_kgf: number | null;
   test_applied_load_kgf: number | null;
   test_duration_seconds: number | null;
+  test_load_direction: string | null;
   test_result: PullTestResult | null;
+  result_confirmed_by: string | null;
+  result_confirmed_at: string | null;
+  fixation_material_reference: string | null;
+  // System description (docx master template section 4) — captured per
+  // point because different anchors on the same laudo can sit on different
+  // structures/finalities, not once per report.
+  system_type: string | null;
+  system_purpose: string | null;
+  capacity_users: string | null;
+  support_structure: string | null;
+  fixation_mode_detail: string | null;
+  environment_condition: string | null;
   notes: string | null;
   issue_tags: string[];
   sort_order: number;

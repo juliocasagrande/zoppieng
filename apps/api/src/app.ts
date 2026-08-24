@@ -7,6 +7,7 @@ import { subscriptionsRouter, paymentWebhookRouter } from "./modules/subscriptio
 import { reportsRouter } from "./modules/reports/routes.js";
 import { fieldRouter } from "./modules/field/routes.js";
 import { accessoriesRouter } from "./modules/accessories/routes.js";
+import { fieldOptionsRouter } from "./modules/fieldOptions/routes.js";
 import { reviewRouter } from "./modules/review/routes.js";
 import { bestPracticesRouter } from "./modules/bestPractices/routes.js";
 import { verifyRouter } from "./modules/verify/routes.js";
@@ -26,6 +27,7 @@ export function createApp() {
   app.use("/reports", reportsRouter);
   app.use("/field", fieldRouter);
   app.use("/accessories", accessoriesRouter);
+  app.use("/field-options", fieldOptionsRouter);
   app.use("/review", reviewRouter);
   app.use("/best-practices", bestPracticesRouter);
   app.use("/verify", verifyRouter);

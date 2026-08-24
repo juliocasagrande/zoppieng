@@ -4,11 +4,11 @@ import { Sidebar } from "./Sidebar.js";
 
 export function ShellLayout() {
   return (
-    <div style={{ display: "grid", gridTemplateRows: "auto 1fr", minHeight: "100vh" }}>
+    <div className="zp-shell" style={{ display: "grid", gridTemplateRows: "auto 1fr", minHeight: "100vh" }}>
       <Header />
-      <div style={{ display: "grid", gridTemplateColumns: "var(--sidebar-width) 1fr" }}>
+      <div className="zp-shell-body" style={{ display: "grid", gridTemplateColumns: "var(--sidebar-width) minmax(0, 1fr)" }}>
         <Sidebar />
-        <main style={{ background: "var(--color-off-white)", padding: "36px 40px" }}>
+        <main className="zp-shell-main" style={{ background: "var(--color-off-white)", padding: "36px 40px", minWidth: 0 }}>
           <Outlet />
         </main>
       </div>

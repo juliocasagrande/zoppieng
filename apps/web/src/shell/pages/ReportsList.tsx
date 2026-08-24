@@ -7,8 +7,10 @@ import { Card } from "../../shared/components/Card.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.js";
 import { Button } from "../../shared/components/Button.js";
 import { Skeleton } from "../../shared/components/Skeleton.js";
+import { useAuth } from "../AuthContext.js";
 
 export function ReportsListPage() {
+  const { profile } = useAuth();
   const [reports, setReports] = useState<(Report & { companies?: { legal_name: string } })[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,9 +25,11 @@ export function ReportsListPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <h1>Laudos de Ancoragem</h1>
-        <Link to="/app/reports/new">
-          <Button>Novo laudo</Button>
-        </Link>
+        {profile?.can_create_reports && (
+          <Link to="/app/reports/new">
+            <Button>Novo laudo</Button>
+          </Link>
+        )}
       </div>
 
       {loading ? (
@@ -48,12 +52,18 @@ export function ReportsListPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {reports.map((r) => (
             <Link key={r.id} to={`/app/reports/${r.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-              <Card style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
+              <Card style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600 }}>{r.name}</div>
                   <div className="zp-eyebrow">
-                    {r.companies?.legal_name ?? "—"} · {r.report_number ?? "sem número"}
+                    {r.companies?.legal_name ?? "—"} · {r.report_number ?? "sem número"} ·{" "}
+                    {new Date(r.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                   </div>
+                  {r.description && (
+                    <p style={{ margin: "6px 0 0", fontSize: "0.85rem", color: "var(--color-gray)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {r.description}
+                    </p>
+                  )}
                 </div>
                 <StatusBadge label={REPORT_STATUS_LABELS[r.status]} tone={REPORT_STATUS_TONE[r.status]} />
               </Card>

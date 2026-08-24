@@ -5,6 +5,7 @@ export function Header() {
   const { profile, signOut } = useAuth();
   return (
     <header
+      className="zp-header"
       style={{
         background: "var(--color-navy-dark)",
         color: "#fff",
@@ -15,7 +16,7 @@ export function Header() {
         justifyContent: "space-between",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div className="zp-header-brand" style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ background: "#fff", borderRadius: "var(--radius)", padding: "6px 10px" }}>
           <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, color: "var(--color-navy-dark)" }}>ZOPPI</span>
         </div>
@@ -23,14 +24,14 @@ export function Header() {
           <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, textTransform: "uppercase", fontSize: "1.1rem" }}>
             Zoppi Segurança
           </div>
-          <div className="zp-eyebrow" style={{ color: "rgba(255,255,255,0.55)" }}>
+          <div className="zp-eyebrow zp-header-tagline" style={{ color: "rgba(255,255,255,0.55)" }}>
             Plataforma de laudos técnicos
           </div>
         </div>
       </div>
       {profile && (
-        <div style={{ display: "flex", alignItems: "center", gap: 16, fontFamily: "var(--font-body)" }}>
-          <div style={{ textAlign: "right" }}>
+        <div className="zp-header-profile" style={{ display: "flex", alignItems: "center", gap: 16, fontFamily: "var(--font-body)" }}>
+          <div className="zp-header-profile-text" style={{ textAlign: "right" }}>
             <div style={{ fontWeight: 600 }}>{profile.full_name}</div>
             <div className="zp-eyebrow" style={{ color: "rgba(255,255,255,0.55)" }}>
               {USER_ROLE_LABELS[profile.role]}

@@ -7,6 +7,7 @@ import { Button } from "../../shared/components/Button.js";
 import { Card } from "../../shared/components/Card.js";
 import { FormField, inputStyle } from "../../shared/components/FormField.js";
 import { Alert } from "../../shared/components/Alert.js";
+import { formatCnpj } from "@zoppi/shared";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -24,7 +25,7 @@ export function LoginPage() {
   const { session } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
 
-  if (session) return <Navigate to="/app/reports" replace />;
+  if (session) return <Navigate to="/app" replace />;
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-navy-dark)", padding: 16 }}>
@@ -143,7 +144,15 @@ function SignupForm({ onBack }: { onBack: () => void }) {
           <input style={inputStyle} required value={companyLegalName} onChange={(e) => setCompanyLegalName(e.target.value)} />
         </FormField>
         <FormField label="CNPJ">
-          <input style={inputStyle} required value={companyCnpj} onChange={(e) => setCompanyCnpj(e.target.value)} />
+          <input
+            style={inputStyle}
+            required
+            inputMode="numeric"
+            maxLength={18}
+            placeholder="00.000.000/0000-00"
+            value={formatCnpj(companyCnpj)}
+            onChange={(e) => setCompanyCnpj(formatCnpj(e.target.value))}
+          />
         </FormField>
         <Button type="submit" disabled={loading} style={{ width: "100%", marginTop: 8 }}>
           {loading ? "Criando conta…" : "Criar conta"}

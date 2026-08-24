@@ -11,25 +11,44 @@ async function signedUrl(bucket: string, path: string): Promise<string> {
   return data?.signedUrl ?? "";
 }
 
+// Photos captured in the field carry a kind-derived caption ("Foto do ponto
+// de ancoragem", "Foto do teste…", "Foto complementar") set at upload time —
+// see FieldWizard.tsx / offline/sync.ts. Falls back to a generic "foto N de
+// M" only for legacy photos that predate that caption.
+function photoCaption(caption: string | null, tag: string, index: number, total: number): string {
+  if (caption) return `${tag} — ${caption}`;
+  return `${tag} — foto ${index + 1} de ${total}`;
+}
+
+// kN -> kgf, used to show a reference load when the field technician (who
+// only records the load actually applied) didn't capture one, but the linked
+// accessory's catalog spec has a rated capacity.
+const KN_TO_KGF = 101.97;
+
 export async function buildReportPdfData(reportId: string): Promise<ReportPdfData> {
   const { data: report, error } = await supabaseAdmin.from("reports").select("*").eq("id", reportId).single();
   if (error || !report) throw new Error(`Report not found: ${reportId}`);
 
-  const [{ data: parties }, { data: points }, { data: engineerUser }, { data: company }] = await Promise.all([
+  const [{ data: parties }, { data: points }, { data: engineerUser }, { data: company }, { data: attachments }, { data: extraPhotos }] = await Promise.all([
     supabaseAdmin.from("report_parties").select("*").eq("report_id", reportId),
     supabaseAdmin
       .from("anchor_points")
-      .select("*, accessory_catalog(name), photos(*)")
+      .select("*, accessory_catalog(name, spec_load_capacity_kn), photos(*)")
       .eq("report_id", reportId)
       .order("sort_order", { ascending: true }),
     report.assigned_engineer_id
-      ? supabaseAdmin.from("users").select("full_name, crea_number").eq("id", report.assigned_engineer_id).single()
+      ? supabaseAdmin.from("users").select("full_name, crea_number, signature_path").eq("id", report.assigned_engineer_id).single()
       : Promise.resolve({ data: null }),
     supabaseAdmin
       .from("companies")
       .select("logo_path, brand_primary_color, brand_secondary_color, pdf_header_text, pdf_footer_text")
       .eq("id", report.company_id)
       .single(),
+    supabaseAdmin.from("report_attachments").select("*").eq("report_id", reportId).order("created_at", { ascending: true }),
+    // Photos captured without a linked anchor point ("foto complementar" in
+    // the field wizard) — the master laudo template (docx, section 8) shows
+    // these separately from the per-point evidence in section 7.
+    supabaseAdmin.from("photos").select("*").eq("report_id", reportId).is("anchor_point_id", null).order("sort_order", { ascending: true }),
   ]);
 
   // Subscriber companies can white-label the laudo with their own logo and
@@ -44,10 +63,34 @@ export async function buildReportPdfData(reportId: string): Promise<ReportPdfDat
   };
 
   const anchorPoints = await Promise.all(
-    (points ?? []).map(async (p: any) => ({
-      ...p,
-      accessoryName: p.accessory_catalog?.name ?? null,
-      photoUrls: await Promise.all((p.photos ?? []).map((ph: any) => signedUrl("report-photos", ph.storage_path))),
+    (points ?? []).map(async (p: any) => {
+      const photoRows: any[] = p.photos ?? [];
+      const photoUrls = await Promise.all(
+        photoRows.map(async (ph, i) => ({ url: await signedUrl("report-photos", ph.storage_path), caption: photoCaption(ph.caption ?? null, p.tag, i, photoRows.length) })),
+      );
+      const accessoryCapacityKn = p.accessory_catalog?.spec_load_capacity_kn ?? null;
+      return {
+        ...p,
+        accessoryName: p.accessory_catalog?.name ?? null,
+        referenceLoadKgf: p.test_reference_load_kgf ?? (accessoryCapacityKn ? Math.round(accessoryCapacityKn * KN_TO_KGF) : null),
+        photoUrls,
+      };
+    }),
+  );
+
+  const engineerSignatureUrl = engineerUser?.signature_path
+    ? supabaseAdmin.storage.from("engineer-signatures").getPublicUrl(engineerUser.signature_path).data.publicUrl
+    : null;
+
+  const attachmentsWithUrls = await Promise.all(
+    (attachments ?? []).map(async (a) => ({ ...a, url: await signedUrl("report-attachments", a.storage_path) })),
+  );
+
+  const complementaryPhotoRows: any[] = extraPhotos ?? [];
+  const complementaryPhotos = await Promise.all(
+    complementaryPhotoRows.map(async (ph, i) => ({
+      url: await signedUrl("report-photos", ph.storage_path),
+      caption: photoCaption(ph.caption ?? null, "Complementar", i, complementaryPhotoRows.length),
     })),
   );
 
@@ -59,7 +102,9 @@ export async function buildReportPdfData(reportId: string): Promise<ReportPdfDat
     contratante: (parties ?? []).find((p) => p.role === "contratante") ?? null,
     contratada: (parties ?? []).find((p) => p.role === "contratada") ?? null,
     anchorPoints,
-    engineer: engineerUser ? { fullName: engineerUser.full_name, creaNumber: engineerUser.crea_number } : null,
+    engineer: engineerUser ? { fullName: engineerUser.full_name, creaNumber: engineerUser.crea_number, signatureUrl: engineerSignatureUrl } : null,
+    attachments: attachmentsWithUrls,
+    complementaryPhotos,
     verificationQrDataUrl,
     brand,
   };

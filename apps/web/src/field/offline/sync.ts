@@ -43,12 +43,22 @@ export async function syncToken(token: string): Promise<{ uploaded: number; subm
   return { uploaded, submitted, submitError };
 }
 
+// Mirrors the labels shown next to each photo slot in FieldWizard.tsx, so the
+// caption recorded here (and later printed under the photo in the PDF)
+// reflects exactly what the technician was asked to capture in the field.
+const PHOTO_KIND_CAPTION: Record<LocalPhoto["kind"], string> = {
+  point: "Foto do ponto de ancoragem",
+  test: "Foto do teste (manômetro e tempo)",
+  extra: "Foto complementar",
+};
+
 async function uploadPhoto(token: string, photo: LocalPhoto): Promise<string> {
   const { path, signedUrl } = await publicApi.post(`/field/${token}/photos/upload-url`, { ext: "jpg" });
   await fetch(signedUrl, { method: "PUT", body: photo.blob, headers: { "Content-Type": "image/jpeg" } });
   const confirmed = await publicApi.post(`/field/${token}/photos/confirm`, {
     path,
     isExtra: photo.kind === "extra",
+    caption: PHOTO_KIND_CAPTION[photo.kind],
   });
   return confirmed.id;
 }
@@ -65,9 +75,18 @@ export async function submitReport(token: string): Promise<void> {
     anchorDepthMm: point.anchorDepthMm,
     distanceBetweenPointsMm: point.distanceBetweenPointsMm,
     testInstrument: point.testInstrument,
+    testReferenceLoadKgf: point.testReferenceLoadKgf,
     testAppliedLoadKgf: point.testAppliedLoadKgf,
     testDurationSeconds: point.testDurationSeconds,
+    testLoadDirection: point.testLoadDirection,
     testResult: point.testResult,
+    fixationMaterialReference: point.fixationMaterialReference,
+    systemType: point.systemType,
+    systemPurpose: point.systemPurpose,
+    capacityUsers: point.capacityUsers,
+    supportStructure: point.supportStructure,
+    fixationModeDetail: point.fixationModeDetail,
+    environmentCondition: point.environmentCondition,
     notes: point.notes,
     issueTags: point.issueTags,
     photoIds: photos.filter((p) => p.anchorTag === point.tag && p.uploaded && p.remotePhotoId).map((p) => p.remotePhotoId!),
@@ -76,6 +95,8 @@ export async function submitReport(token: string): Promise<void> {
   await publicApi.post(`/field/${token}/submit`, {
     fieldExecutorName: progress.fieldExecutorName,
     fieldExecutorRole: progress.fieldExecutorRole,
+    accompanyingClientName: progress.accompanyingClientName,
+    accompanyingClientRole: progress.accompanyingClientRole,
     testEquipmentManufacturer: progress.testEquipmentManufacturer,
     testEquipmentModel: progress.testEquipmentModel,
     testEquipmentSerial: progress.testEquipmentSerial,

@@ -1,21 +1,39 @@
 import { Router } from "express";
 import { supabaseAdmin } from "../../lib/supabase.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
+import { hasActiveModuleAccessBySlug } from "../reports/accessGuard.js";
 
 export const usersRouter = Router();
 
 usersRouter.use(requireAuth);
+
+function signatureUrl(path: string | null): string | null {
+  return path ? supabaseAdmin.storage.from("engineer-signatures").getPublicUrl(path).data.publicUrl : null;
+}
 
 // Returns the DB row shape (snake_case, matching the shared AppUser type) —
 // not the internal camelCase AuthedUser used by middleware/route guards.
 usersRouter.get("/me", async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("id, company_id, role, full_name, email, phone, crea_number, active")
+    .select("id, company_id, role, full_name, email, phone, crea_number, active, signature_path")
     .eq("id", req.user!.id)
     .single();
   if (error || !data) return res.status(404).json({ error: "Profile not found" });
-  res.json(data);
+  const isZoppiStaff = data.role === "zoppi_admin" || data.role === "zoppi_engineer";
+  const canCreateReports = isZoppiStaff || (data.company_id ? await hasActiveModuleAccessBySlug(data.company_id, "ancoragem") : false);
+  res.json({ ...data, can_create_reports: canCreateReports, signature_url: signatureUrl(data.signature_path) });
+});
+
+// Returns a signed upload URL for the caller's own signature image (white
+// background, as if signed on paper) — used alongside the ICP-Brasil digital
+// certificate and ART in the PDF signature block, not instead of them.
+usersRouter.post("/me/signature-upload-url", async (req, res) => {
+  const ext = (req.body?.ext as string) ?? "png";
+  const path = `${req.user!.id}/${Date.now()}.${ext}`;
+  const { data, error } = await supabaseAdmin.storage.from("engineer-signatures").createSignedUploadUrl(path);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ path, token: data.token, signedUrl: data.signedUrl });
 });
 
 usersRouter.get("/", async (req, res) => {

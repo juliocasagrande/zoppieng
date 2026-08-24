@@ -7,6 +7,7 @@ import { Card } from "../../shared/components/Card.js";
 import { FormField, inputStyle } from "../../shared/components/FormField.js";
 import { Button } from "../../shared/components/Button.js";
 import { Skeleton } from "../../shared/components/Skeleton.js";
+import { CnpjLookupField } from "../../shared/components/CnpjLookupField.js";
 
 type CompanyWithLogo = Company & { logo_url: string | null };
 
@@ -27,7 +28,15 @@ export function CompanyAdminPage() {
     try {
       await api.patch(`/companies/${company.id}`, {
         legal_name: company.legal_name,
+        trade_name: company.trade_name,
         cnpj: company.cnpj,
+        address_street: company.address_street,
+        address_number: company.address_number,
+        address_complement: company.address_complement,
+        address_district: company.address_district,
+        address_city: company.address_city,
+        address_state: company.address_state,
+        address_zip: company.address_zip,
         contact_name: company.contact_name,
         contact_email: company.contact_email,
         contact_phone: company.contact_phone,
@@ -80,9 +89,52 @@ export function CompanyAdminPage() {
           <FormField label="Razão social">
             <input style={inputStyle} value={company.legal_name} onChange={(e) => setCompany({ ...company, legal_name: e.target.value })} />
           </FormField>
-          <FormField label="CNPJ">
-            <input style={inputStyle} value={company.cnpj} onChange={(e) => setCompany({ ...company, cnpj: e.target.value })} />
+          <CnpjLookupField
+            value={company.cnpj}
+            onChange={(cnpj) => setCompany({ ...company, cnpj })}
+            onResult={(result) =>
+              setCompany({
+                ...company,
+                cnpj: result.cnpj,
+                legal_name: result.legalName || company.legal_name,
+                trade_name: result.tradeName,
+                address_street: result.street,
+                address_number: result.number,
+                address_complement: result.complement,
+                address_district: result.district,
+                address_city: result.city,
+                address_state: result.state,
+                address_zip: result.zip,
+                contact_phone: company.contact_phone || result.phone,
+                contact_email: company.contact_email || result.email,
+              })
+            }
+          />
+          <FormField label="Nome fantasia">
+            <input style={inputStyle} value={company.trade_name ?? ""} onChange={(e) => setCompany({ ...company, trade_name: e.target.value })} />
           </FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+            <FormField label="Logradouro">
+              <input style={inputStyle} value={company.address_street ?? ""} onChange={(e) => setCompany({ ...company, address_street: e.target.value })} />
+            </FormField>
+            <FormField label="Número">
+              <input style={inputStyle} value={company.address_number ?? ""} onChange={(e) => setCompany({ ...company, address_number: e.target.value })} />
+            </FormField>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
+            <FormField label="Bairro">
+              <input style={inputStyle} value={company.address_district ?? ""} onChange={(e) => setCompany({ ...company, address_district: e.target.value })} />
+            </FormField>
+            <FormField label="Cidade">
+              <input style={inputStyle} value={company.address_city ?? ""} onChange={(e) => setCompany({ ...company, address_city: e.target.value })} />
+            </FormField>
+            <FormField label="UF">
+              <input style={inputStyle} maxLength={2} value={company.address_state ?? ""} onChange={(e) => setCompany({ ...company, address_state: e.target.value.toUpperCase() })} />
+            </FormField>
+            <FormField label="CEP">
+              <input style={inputStyle} inputMode="numeric" value={company.address_zip ?? ""} onChange={(e) => setCompany({ ...company, address_zip: e.target.value.replace(/\D/g, "").slice(0, 8) })} />
+            </FormField>
+          </div>
           <FormField label="Contato">
             <input style={inputStyle} value={company.contact_name ?? ""} onChange={(e) => setCompany({ ...company, contact_name: e.target.value })} />
           </FormField>

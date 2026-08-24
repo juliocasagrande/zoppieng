@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type PropsWithChildren } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type PropsWithChildren } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type { AppUser } from "@zoppi/shared";
 import { supabase } from "../lib/supabaseClient.js";
@@ -8,15 +8,21 @@ interface AuthState {
   session: Session | null;
   profile: AppUser | null;
   loading: boolean;
+  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthState>({ session: null, profile: null, loading: true, signOut: async () => {} });
+const AuthContext = createContext<AuthState>({ session: null, profile: null, loading: true, refreshProfile: async () => {}, signOut: async () => {} });
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const refreshProfile = useCallback(async () => {
+    const data = await api.get("/users/me");
+    setProfile(data);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -70,7 +76,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [userId]);
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, signOut: () => supabase.auth.signOut().then(() => {}) }}>
+    <AuthContext.Provider value={{ session, profile, loading, refreshProfile, signOut: () => supabase.auth.signOut().then(() => {}) }}>
       {children}
     </AuthContext.Provider>
   );

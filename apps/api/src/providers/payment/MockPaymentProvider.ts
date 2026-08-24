@@ -20,6 +20,10 @@ export class MockPaymentProvider implements PaymentProvider {
     console.log(`[MockPaymentProvider] cancelled subscription ${providerSubscriptionId}`);
   }
 
+  async getSubscriptionStatus(): Promise<WebhookEvent["status"] | null> {
+    return null;
+  }
+
   parseWebhook(): WebhookEvent | null {
     return null;
   }

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import QRCode from "qrcode";
-import { createReportSchema } from "@zoppi/shared";
+import { createReportSchema, normalizeCnpj, reportAttachmentConfirmSchema } from "@zoppi/shared";
 import { supabaseAdmin } from "../../lib/supabase.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { hasActiveModuleAccess } from "./accessGuard.js";
@@ -139,8 +139,11 @@ reportsRouter.post("/", requireRole("zoppi_admin", "zoppi_engineer", "company_ad
           module_id: moduleId,
           company_id: input.companyId,
           name: input.name,
+          description: input.description ?? null,
           site_address: input.siteAddress ?? null,
           site_identification: input.siteIdentification ?? null,
+          site_area: input.siteArea ?? null,
+          survey_date: input.surveyDate ?? null,
           status: "draft",
           report_number: reportNumber,
           valid_until: validUntil.toISOString(),
@@ -179,7 +182,7 @@ function toPartyRow(party: { companyId?: string; legalName: string; cnpj?: strin
   return {
     company_id: party.companyId ?? null,
     legal_name: party.legalName,
-    cnpj: party.cnpj ?? null,
+    cnpj: party.cnpj ? normalizeCnpj(party.cnpj) : null,
     address: party.address ?? null,
     contact_name: party.contactName ?? null,
     contact_role: party.contactRole ?? null,
@@ -254,6 +257,81 @@ reportsRouter.get("/:id/pdf-url", async (req, res) => {
   const { data, error: signError } = await supabaseAdmin.storage.from("report-pdfs").createSignedUrl(path, 60 * 10);
   if (signError) return res.status(500).json({ error: signError.message });
   res.json({ url: data.signedUrl });
+});
+
+async function authorizeReportAccess(req: any, res: any): Promise<{ id: string; company_id: string } | null> {
+  const { data: report, error } = await supabaseAdmin.from("reports").select("id, company_id").eq("id", req.params.id).single();
+  if (error || !report) {
+    res.status(404).json({ error: "Report not found" });
+    return null;
+  }
+  if ((req.user!.role === "company_admin" || req.user!.role === "company_operational") && req.user!.companyId !== report.company_id) {
+    res.status(403).json({ error: "Forbidden" });
+    return null;
+  }
+  return report;
+}
+
+// Attachments (master template annex index, section A): calibration
+// certificates, datasheets, project memorials, lab reports, etc. Uploaded by
+// staff or the subscriber company, listed in the PDF's annex index.
+reportsRouter.get("/:id/attachments", async (req, res) => {
+  const report = await authorizeReportAccess(req, res);
+  if (!report) return;
+  const { data, error } = await supabaseAdmin
+    .from("report_attachments")
+    .select("*")
+    .eq("report_id", report.id)
+    .order("created_at", { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+  const withUrls = await Promise.all(
+    (data ?? []).map(async (a) => {
+      const { data: signed } = await supabaseAdmin.storage.from("report-attachments").createSignedUrl(a.storage_path, 60 * 10);
+      return { ...a, url: signed?.signedUrl ?? null };
+    }),
+  );
+  res.json(withUrls);
+});
+
+reportsRouter.post("/:id/attachments/upload-url", async (req, res) => {
+  const report = await authorizeReportAccess(req, res);
+  if (!report) return;
+  const ext = (req.body?.ext as string) ?? "pdf";
+  const path = `${report.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { data, error } = await supabaseAdmin.storage.from("report-attachments").createSignedUploadUrl(path);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ path, token: data.token, signedUrl: data.signedUrl });
+});
+
+reportsRouter.post("/:id/attachments/confirm", async (req, res) => {
+  const report = await authorizeReportAccess(req, res);
+  if (!report) return;
+  const parsed = reportAttachmentConfirmSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { data, error } = await supabaseAdmin
+    .from("report_attachments")
+    .insert({
+      report_id: report.id,
+      category: parsed.data.category,
+      label: parsed.data.label,
+      storage_path: parsed.data.path,
+      uploaded_by: req.user!.id,
+    })
+    .select()
+    .single();
+  if (error) return res.status(400).json({ error: error.message });
+  res.status(201).json(data);
+});
+
+reportsRouter.delete("/:id/attachments/:attachmentId", async (req, res) => {
+  const report = await authorizeReportAccess(req, res);
+  if (!report) return;
+  const { data: attachment } = await supabaseAdmin.from("report_attachments").select("storage_path").eq("id", req.params.attachmentId).eq("report_id", report.id).single();
+  if (!attachment) return res.status(404).json({ error: "Attachment not found" });
+  await supabaseAdmin.storage.from("report-attachments").remove([attachment.storage_path]);
+  const { error } = await supabaseAdmin.from("report_attachments").delete().eq("id", req.params.attachmentId);
+  if (error) return res.status(400).json({ error: error.message });
+  res.status(204).end();
 });
 
 reportsRouter.get("/:id/pdf-status", async (req, res) => {

@@ -7,27 +7,47 @@ import { getNotificationProvider } from "../../providers/notification/index.js";
 
 export const fieldRouter = Router();
 
+function withImageUrl<T extends { image_path: string | null }>(bucket: string, item: T): T & { image_url: string | null } {
+  const image_url = item.image_path ? supabaseAdmin.storage.from(bucket).getPublicUrl(item.image_path).data.publicUrl : null;
+  return { ...item, image_url };
+}
+
+const FIELD_OPTION_KEYS = ["device_type", "system_type", "support_structure", "environment_condition"] as const;
+
 // GET /field/:token — welcome data for the field wizard (report name,
-// requesting company, previously-filled anchor points on a correction link).
+// requesting company, previously-filled anchor points on a correction link,
+// customizable option catalogs for the picker fields).
 fieldRouter.get("/:token", requireFieldToken, async (req, res) => {
   const { data: report } = await supabaseAdmin
     .from("reports")
     .select("id, name, site_address, site_identification, company_id, companies(legal_name)")
     .eq("id", req.fieldLink!.reportId)
     .single();
-  const { data: anchorPoints } = await supabaseAdmin
-    .from("anchor_points")
-    .select("*, photos(*)")
-    .eq("report_id", req.fieldLink!.reportId)
-    .order("sort_order");
-  const { data: accessories } = await supabaseAdmin
-    .from("accessory_catalog")
-    .select("*")
-    .eq("active", true)
-    .or(`scope.eq.zoppi_standard,company_id.eq.${(report as any)?.company_id}`);
-  const { data: tips } = await supabaseAdmin.from("best_practices_content").select("*").eq("active", true).order("sort_order");
+  const companyId = (report as any)?.company_id;
+  const [{ data: anchorPoints }, { data: accessories }, { data: tips }, { data: fieldOptionRows }] = await Promise.all([
+    supabaseAdmin.from("anchor_points").select("*, photos(*)").eq("report_id", req.fieldLink!.reportId).order("sort_order"),
+    supabaseAdmin.from("accessory_catalog").select("*").eq("active", true).or(`scope.eq.zoppi_standard,company_id.eq.${companyId}`),
+    supabaseAdmin.from("best_practices_content").select("*").eq("active", true).order("sort_order"),
+    supabaseAdmin
+      .from("field_option_catalog")
+      .select("*")
+      .eq("active", true)
+      .or(`scope.eq.zoppi_standard,company_id.eq.${companyId}`)
+      .order("sort_order")
+      .order("label"),
+  ]);
 
-  res.json({ report, anchorPoints, accessories, tips });
+  const fieldOptions = Object.fromEntries(
+    FIELD_OPTION_KEYS.map((key) => [key, (fieldOptionRows ?? []).filter((o) => o.field_key === key).map((o) => withImageUrl("field-option-images", o))]),
+  );
+
+  res.json({
+    report,
+    anchorPoints,
+    accessories: (accessories ?? []).map((a) => withImageUrl("accessory-images", a)),
+    tips,
+    fieldOptions,
+  });
 });
 
 // POST /field/:token/photos — returns a signed upload URL for a single photo.
@@ -83,9 +103,18 @@ fieldRouter.post("/:token/submit", requireFieldToken, async (req, res) => {
       anchor_depth_mm: point.anchorDepthMm ?? null,
       distance_between_points_mm: point.distanceBetweenPointsMm ?? null,
       test_instrument: point.testInstrument ?? null,
+      test_reference_load_kgf: point.testReferenceLoadKgf ?? null,
       test_applied_load_kgf: point.testAppliedLoadKgf ?? null,
       test_duration_seconds: point.testDurationSeconds ?? null,
+      test_load_direction: point.testLoadDirection ?? null,
       test_result: point.testResult ?? null,
+      fixation_material_reference: point.fixationMaterialReference ?? null,
+      system_type: point.systemType ?? null,
+      system_purpose: point.systemPurpose ?? null,
+      capacity_users: point.capacityUsers ?? null,
+      support_structure: point.supportStructure ?? null,
+      fixation_mode_detail: point.fixationModeDetail ?? null,
+      environment_condition: point.environmentCondition ?? null,
       notes: point.notes ?? null,
       issue_tags: point.issueTags ?? [],
       sort_order: point.sortOrder ?? index,
@@ -113,6 +142,10 @@ fieldRouter.post("/:token/submit", requireFieldToken, async (req, res) => {
       status: "in_review",
       field_executor_name: input.fieldExecutorName ?? null,
       field_executor_role: input.fieldExecutorRole ?? null,
+      field_executor_accepted_at: input.fieldExecutorName ? new Date().toISOString() : null,
+      accompanying_client_name: input.accompanyingClientName ?? null,
+      accompanying_client_role: input.accompanyingClientRole ?? null,
+      accompanying_client_accepted_at: input.accompanyingClientName ? new Date().toISOString() : null,
       test_equipment_manufacturer: input.testEquipmentManufacturer ?? null,
       test_equipment_model: input.testEquipmentModel ?? null,
       test_equipment_serial: input.testEquipmentSerial ?? null,

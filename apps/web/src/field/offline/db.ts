@@ -4,13 +4,22 @@ export interface LocalAnchorPoint {
   tag: string;
   accessoryId: string | null;
   installationMode: "quimico" | "mecanico" | null;
-  deviceType: "A" | "A1" | "B" | "C" | "D" | null;
+  deviceType: string | null;
   anchorDepthMm: number | null;
   distanceBetweenPointsMm: number | null;
   testInstrument: string | null;
+  testReferenceLoadKgf: number | null;
   testAppliedLoadKgf: number | null;
   testDurationSeconds: number | null;
+  testLoadDirection: string | null;
   testResult: "aprovado" | "atencao" | "reprovado" | null;
+  fixationMaterialReference: string | null;
+  systemType: string | null;
+  systemPurpose: string | null;
+  capacityUsers: string | null;
+  supportStructure: string | null;
+  fixationModeDetail: string | null;
+  environmentCondition: string | null;
   notes: string | null;
   issueTags: string[];
 }
@@ -19,6 +28,8 @@ export interface LocalProgress {
   token: string;
   fieldExecutorName: string | null;
   fieldExecutorRole: string | null;
+  accompanyingClientName: string | null;
+  accompanyingClientRole: string | null;
   testEquipmentManufacturer: string | null;
   testEquipmentModel: string | null;
   testEquipmentSerial: string | null;
@@ -69,6 +80,8 @@ export async function getProgress(token: string): Promise<LocalProgress> {
       token,
       fieldExecutorName: null,
       fieldExecutorRole: null,
+      accompanyingClientName: null,
+      accompanyingClientRole: null,
       testEquipmentManufacturer: null,
       testEquipmentModel: null,
       testEquipmentSerial: null,

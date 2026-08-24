@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ANCHOR_DEVICE_TYPE_LABELS, ANCHOR_ISSUE_TAGS } from "@zoppi/shared";
+import { ANCHOR_ISSUE_TAGS, SYSTEM_PURPOSE_OPTIONS, type FieldOptionKey } from "@zoppi/shared";
 import { publicApi } from "../lib/api.js";
 import { Button } from "../shared/components/Button.js";
 import { Card } from "../shared/components/Card.js";
 import { FormField, inputStyle } from "../shared/components/FormField.js";
 import { Alert } from "../shared/components/Alert.js";
 import { Skeleton } from "../shared/components/Skeleton.js";
+import { OptionPicker, type PickerOption } from "../shared/components/OptionPicker.js";
 import { useOnlineStatus } from "./useOnlineStatus.js";
 import {
   addPhoto,
@@ -24,8 +25,13 @@ import { syncToken } from "./offline/sync.js";
 
 interface WelcomeData {
   report: { name: string; site_address: string | null; site_identification: string | null; companies?: { legal_name: string } };
-  accessories: { id: string; name: string }[];
+  accessories: { id: string; name: string; image_url: string | null }[];
   tips: { slug: string; title: string; summary: string | null; step_context: string | null }[];
+  fieldOptions: Record<FieldOptionKey, { value: string; label: string; image_url: string | null }[]>;
+}
+
+function toPickerOptions(items: { value: string; label: string; image_url: string | null }[] | undefined): PickerOption[] {
+  return (items ?? []).map((o) => ({ value: o.value, label: o.label, imageUrl: o.image_url }));
 }
 
 function emptyPoint(tag: string): LocalAnchorPoint {
@@ -37,9 +43,18 @@ function emptyPoint(tag: string): LocalAnchorPoint {
     anchorDepthMm: null,
     distanceBetweenPointsMm: null,
     testInstrument: null,
+    testReferenceLoadKgf: null,
     testAppliedLoadKgf: null,
     testDurationSeconds: null,
+    testLoadDirection: null,
     testResult: null,
+    fixationMaterialReference: null,
+    systemType: null,
+    systemPurpose: null,
+    capacityUsers: null,
+    supportStructure: null,
+    fixationModeDetail: null,
+    environmentCondition: null,
     notes: null,
     issueTags: [],
   };
@@ -65,6 +80,7 @@ export function FieldWizard() {
   const [step, setStep] = useState<Step>("welcome");
   const [syncStatus, setSyncStatus] = useState<string>("");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pointError, setPointError] = useState<string | null>(null);
 
   useEffect(() => {
     publicApi
@@ -107,6 +123,10 @@ export function FieldWizard() {
     runSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online]);
+
+  useEffect(() => {
+    setPointError(null);
+  }, [step]);
 
   function addPoint() {
     if (!progress) return;
@@ -197,7 +217,17 @@ export function FieldWizard() {
           </FormField>
         </Card>
 
-        <SectionLabel n={2} title="Instrumento de teste (dinamômetro)" />
+        <SectionLabel n={2} title="Acompanhante do cliente (se houver)" />
+        <Card padding={20} style={{ marginTop: 8 }}>
+          <FormField label="Nome do acompanhante">
+            <input style={inputStyle} value={progress.accompanyingClientName ?? ""} onChange={(e) => updateProgress({ accompanyingClientName: e.target.value })} />
+          </FormField>
+          <FormField label="Função do acompanhante">
+            <input style={inputStyle} value={progress.accompanyingClientRole ?? ""} onChange={(e) => updateProgress({ accompanyingClientRole: e.target.value })} />
+          </FormField>
+        </Card>
+
+        <SectionLabel n={3} title="Instrumento de teste (dinamômetro)" />
         <Card padding={20} style={{ marginTop: 8 }}>
           <FormField label="Fabricante">
             <input
@@ -255,6 +285,15 @@ export function FieldWizard() {
     function toggleIssueTag(value: string) {
       const has = point.issueTags.includes(value);
       updatePoint({ issueTags: has ? point.issueTags.filter((t) => t !== value) : [...point.issueTags, value] });
+    }
+
+    function goToNextStep() {
+      if (!point.deviceType || point.testAppliedLoadKgf == null || point.testDurationSeconds == null) {
+        setPointError("Preencha tipo de dispositivo, carga aplicada e tempo de teste antes de continuar.");
+        return;
+      }
+      setPointError(null);
+      setStep(isLastPoint ? "review" : (step as number) + 1);
     }
 
     async function handlePhoto(file: File, kind: LocalPhotoKind) {
@@ -320,23 +359,80 @@ export function FieldWizard() {
           />
 
           <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
-            Tipo de dispositivo (NBR 16325-1)
+            Tipo de dispositivo (NBR 16325-1) *
           </div>
-          <select
-            style={inputStyle}
-            value={point.deviceType ?? ""}
-            onChange={(e) => updatePoint({ deviceType: (e.target.value || null) as LocalAnchorPoint["deviceType"] })}
-          >
-            <option value="">Selecione…</option>
-            {Object.entries(ANCHOR_DEVICE_TYPE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <OptionPicker
+            options={toPickerOptions(welcome.fieldOptions.device_type)}
+            value={point.deviceType}
+            onChange={(v) => updatePoint({ deviceType: v })}
+          />
 
           <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
-            Carga aplicada no teste
+            Descrição do sistema neste ponto
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <div className="zp-eyebrow" style={{ marginBottom: 6 }}>
+                Tipo do sistema
+              </div>
+              <OptionPicker
+                options={toPickerOptions(welcome.fieldOptions.system_type)}
+                value={point.systemType}
+                onChange={(v) => updatePoint({ systemType: v })}
+              />
+            </div>
+            <SelectOrOther
+              label="Finalidade"
+              options={SYSTEM_PURPOSE_OPTIONS}
+              value={point.systemPurpose}
+              onChange={(v) => updatePoint({ systemPurpose: v })}
+            />
+            <div>
+              <div className="zp-eyebrow" style={{ marginBottom: 6 }}>
+                Capacidade / usuários
+              </div>
+              <input
+                style={inputStyle}
+                placeholder="Ex.: 1 usuário — conforme projeto/fabricante"
+                value={point.capacityUsers ?? ""}
+                onChange={(e) => updatePoint({ capacityUsers: e.target.value || null })}
+              />
+            </div>
+            <div>
+              <div className="zp-eyebrow" style={{ marginBottom: 6 }}>
+                Estrutura suporte
+              </div>
+              <OptionPicker
+                options={toPickerOptions(welcome.fieldOptions.support_structure)}
+                value={point.supportStructure}
+                onChange={(v) => updatePoint({ supportStructure: v })}
+              />
+            </div>
+            <div>
+              <div className="zp-eyebrow" style={{ marginBottom: 6 }}>
+                Modo de fixação (detalhe)
+              </div>
+              <input
+                style={inputStyle}
+                placeholder="Ex.: Químico com resina epóxi / mecânico tipo expansão"
+                value={point.fixationModeDetail ?? ""}
+                onChange={(e) => updatePoint({ fixationModeDetail: e.target.value || null })}
+              />
+            </div>
+            <div>
+              <div className="zp-eyebrow" style={{ marginBottom: 6 }}>
+                Condição ambiental
+              </div>
+              <OptionPicker
+                options={toPickerOptions(welcome.fieldOptions.environment_condition)}
+                value={point.environmentCondition}
+                onChange={(v) => updatePoint({ environmentCondition: v })}
+              />
+            </div>
+          </div>
+
+          <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
+            Carga aplicada no teste *
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <input
@@ -352,7 +448,7 @@ export function FieldWizard() {
           <div style={{ fontSize: "0.78rem", color: "var(--color-gray)", marginTop: 4 }}>Carga mínima exigida pela NR35/NBR 16325-1: 1.500 kgf.</div>
 
           <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
-            Tempo de teste (segundos)
+            Tempo de teste (segundos) *
           </div>
           <input
             style={inputStyle}
@@ -363,7 +459,7 @@ export function FieldWizard() {
           />
 
           <div className="zp-eyebrow" style={{ margin: "18px 0 8px" }}>
-            Resultado do teste
+            Resultado do teste (sua sugestão — o engenheiro confirma na revisão)
           </div>
           <SegmentedControl
             options={[
@@ -408,16 +504,17 @@ export function FieldWizard() {
         <details style={{ marginTop: 16 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600, padding: "8px 0" }}>Medições adicionais (opcional)</summary>
           <Card padding={20} style={{ marginTop: 8 }}>
-            <FormField label="Acessório utilizado">
-              <select style={inputStyle} value={point.accessoryId ?? ""} onChange={(e) => updatePoint({ accessoryId: e.target.value || null })}>
-                <option value="">Selecione…</option>
-                {welcome.accessories.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </FormField>
+            <div style={{ marginBottom: 16 }}>
+              <div className="zp-eyebrow" style={{ marginBottom: 6 }}>
+                Acessório utilizado
+              </div>
+              <OptionPicker
+                options={welcome.accessories.map((a) => ({ value: a.id, label: a.name, imageUrl: a.image_url }))}
+                value={point.accessoryId}
+                onChange={(v) => updatePoint({ accessoryId: v })}
+                allowOther={false}
+              />
+            </div>
             <FormField label="Profundidade do chumbador (mm)">
               <input
                 style={inputStyle}
@@ -436,18 +533,41 @@ export function FieldWizard() {
                 onChange={(e) => updatePoint({ distanceBetweenPointsMm: e.target.value ? Number(e.target.value) : null })}
               />
             </FormField>
+            <FormField label="Material / referência da fixação">
+              <input
+                style={inputStyle}
+                value={point.fixationMaterialReference ?? ""}
+                onChange={(e) => updatePoint({ fixationMaterialReference: e.target.value })}
+              />
+            </FormField>
+            <FormField label="Direção da carga aplicada">
+              <input
+                style={inputStyle}
+                placeholder="Ex.: Tração"
+                value={point.testLoadDirection ?? ""}
+                onChange={(e) => updatePoint({ testLoadDirection: e.target.value })}
+              />
+            </FormField>
           </Card>
         </details>
+
+        {pointError && (
+          <div style={{ marginTop: 16 }}>
+            <Alert tone="danger">{pointError}</Alert>
+          </div>
+        )}
 
         <div style={{ height: 96 }} />
 
         <BottomBar>
-          <Button style={{ width: "100%" }} onClick={() => setStep(isLastPoint ? "review" : step + 1)}>
+          <Button style={{ width: "100%" }} onClick={goToNextStep}>
             {isLastPoint ? "Ir para revisão" : "Próximo ponto"}
           </Button>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <Button variant="secondary" style={{ width: "100%", marginTop: 10 }} onClick={addPoint}>
+            + Adicionar outro ponto de ancoragem
+          </Button>
+          <div style={{ marginTop: 8, textAlign: "center" }}>
             <TextButton onClick={() => setStep(step === 0 ? "equipment" : step - 1)}>← Voltar</TextButton>
-            {isLastPoint && <TextButton onClick={addPoint}>+ Adicionar outro ponto</TextButton>}
           </div>
         </BottomBar>
       </FieldShell>
@@ -510,15 +630,15 @@ export function FieldWizard() {
 
         <BottomBar>
           <Button
-            style={{ width: "100%" }}
+            style={{ width: "100%", padding: "16px 26px", fontSize: "1.02rem", background: "var(--color-success)", borderColor: "var(--color-success)" }}
             onClick={async () => {
               await persist({ ...progress, pendingSubmit: true });
               await runSync();
             }}
           >
-            {online ? "Enviar laudo" : "Salvar e enviar quando conectar"}
+            {online ? "✓ Enviar laudo" : "Salvar e enviar quando conectar"}
           </Button>
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 8, textAlign: "center" }}>
             <TextButton onClick={() => setStep(Math.max(0, progress.anchorPoints.length - 1))}>← Voltar</TextButton>
           </div>
         </BottomBar>
@@ -658,6 +778,67 @@ function PhotoSlot({
         />
       </div>
     </Card>
+  );
+}
+
+const OTHER_OPTION = "__other__";
+
+// A <select> of curated, norm-grounded suggestions with an "Outro" option
+// that reveals a free-text input — the value is always stored as plain text
+// (anchor_points columns aren't enums), this is only UI sugar to keep field
+// entries consistent without blocking edge cases.
+function SelectOrOther({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly string[];
+  value: string | null;
+  onChange: (value: string | null) => void;
+}) {
+  // Custom mode is tracked explicitly rather than inferred from `value` — an
+  // empty custom value (right after picking "Outro", before typing) would
+  // otherwise be indistinguishable from "nothing selected".
+  const [customMode, setCustomMode] = useState(() => value != null && value !== "" && !options.includes(value));
+  return (
+    <div>
+      <div className="zp-eyebrow" style={{ marginBottom: 6 }}>
+        {label}
+      </div>
+      <select
+        style={inputStyle}
+        value={customMode ? OTHER_OPTION : value ?? ""}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === OTHER_OPTION) {
+            setCustomMode(true);
+            onChange("");
+          } else {
+            setCustomMode(false);
+            onChange(v || null);
+          }
+        }}
+      >
+        <option value="">Selecione…</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+        <option value={OTHER_OPTION}>Outro (especificar)</option>
+      </select>
+      {customMode && (
+        <input
+          style={{ ...inputStyle, marginTop: 8 }}
+          placeholder="Especifique…"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          autoFocus
+        />
+      )}
+    </div>
   );
 }
 

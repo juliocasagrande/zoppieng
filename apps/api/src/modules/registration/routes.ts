@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { isValidCnpj, normalizeCnpj } from "@zoppi/shared";
 import { supabaseAdmin } from "../../lib/supabase.js";
 
 export const registrationRouter = Router();
@@ -9,7 +10,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   companyLegalName: z.string().min(1),
-  companyCnpj: z.string().min(1),
+  companyCnpj: z.string().transform(normalizeCnpj).refine(isValidCnpj, "CNPJ inválido."),
 });
 
 // Public self-registration for a new subscriber company (spec section 3.1,

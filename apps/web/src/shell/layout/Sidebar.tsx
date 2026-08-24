@@ -5,26 +5,34 @@ interface NavItem {
   to: string;
   label: string;
   roles?: string[];
+  requiresReportCreation?: boolean;
 }
 
 // Module-aware by construction: today only "Ancoragem" items exist, but new
 // modules add their own entries here (or are derived from active
 // module_subscriptions) without touching the shell layout.
 const NAV_ITEMS: NavItem[] = [
-  { to: "/app/reports", label: "Laudos — Ancoragem" },
+  { to: "/app/reports", label: "Laudos — Ancoragem", requiresReportCreation: true },
   { to: "/app/review", label: "Fila de revisão", roles: ["zoppi_admin", "zoppi_engineer"] },
   { to: "/app/accessories", label: "Catálogo de acessórios" },
+  { to: "/app/field-options", label: "Tipos e opções de campo" },
   { to: "/app/best-practices", label: "Boas práticas" },
   { to: "/app/billing", label: "Assinatura", roles: ["zoppi_admin", "company_admin"] },
   { to: "/app/company", label: "Empresa", roles: ["zoppi_admin", "company_admin"] },
+  { to: "/app/profile", label: "Meu perfil", roles: ["zoppi_admin", "zoppi_engineer"] },
 ];
 
 export function Sidebar() {
   const { profile } = useAuth();
-  const items = NAV_ITEMS.filter((item) => !item.roles || (profile && item.roles.includes(profile.role)));
+  const items = NAV_ITEMS.filter(
+    (item) =>
+      (!item.roles || (profile && item.roles.includes(profile.role))) &&
+      (!item.requiresReportCreation || profile?.can_create_reports),
+  );
 
   return (
     <nav
+      className="zp-sidebar"
       style={{
         background: "var(--color-navy-dark)",
         width: "var(--sidebar-width)",
@@ -35,7 +43,7 @@ export function Sidebar() {
         gap: 4,
       }}
     >
-      <div className="zp-eyebrow" style={{ color: "rgba(255,255,255,0.35)", padding: "0 14px", marginBottom: 12 }}>
+      <div className="zp-eyebrow zp-sidebar-label" style={{ color: "rgba(255,255,255,0.35)", padding: "0 14px", marginBottom: 12 }}>
         Navegação
       </div>
       {items.map((item) => (

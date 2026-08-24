@@ -55,11 +55,28 @@ export class MercadoPagoProvider implements PaymentProvider {
     }
   }
 
+  async getSubscriptionStatus(providerSubscriptionId: string): Promise<WebhookEvent["status"] | null> {
+    const response = await fetch(`${MP_API_BASE}/preapproval/${providerSubscriptionId}`, {
+      headers: {
+        Authorization: `Bearer ${env.mercadopagoAccessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Mercado Pago getSubscriptionStatus failed: ${response.status} ${await response.text()}`);
+    }
+    const data = (await response.json()) as { status?: string };
+    if (data.status === "authorized") return "active";
+    if (data.status === "paused") return "past_due";
+    if (data.status === "cancelled") return "cancelled";
+    return null;
+  }
+
   parseWebhook(rawBody: unknown): WebhookEvent | null {
     const body = rawBody as { data?: { id?: string }; action?: string; type?: string } | undefined;
     if (!body?.data?.id) return null;
-    // Mercado Pago webhooks only notify "something changed" — the caller is
-    // expected to fetch /preapproval/{id} for the authoritative status.
+    // The webhook only identifies the subscription. The route fetches the
+    // authoritative provider status before changing local access.
     return { providerSubscriptionId: body.data.id, status: "active", raw: rawBody };
   }
 }

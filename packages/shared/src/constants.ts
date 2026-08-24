@@ -30,15 +30,21 @@ export const PULL_TEST_RESULT_TONE: Record<string, "success" | "warning" | "dang
   reprovado: "danger",
 };
 
-// NBR 16325-1 device classification, offered to the field technician per
-// anchor point (spec: laudo must state the device type tested, e.g. "Tipo A1").
-export const ANCHOR_DEVICE_TYPE_LABELS: Record<string, string> = {
-  A: "Tipo A — ponto de ancoragem fixo simples",
-  A1: "Tipo A1 — olhal/estrutura rígida certificada",
-  B: "Tipo B — múltiplos pontos fixos interligados",
-  C: "Tipo C — linha de vida flexível horizontal",
-  D: "Tipo D — trilho rígido horizontal",
-};
+// "Finalidade" is the one per-point system-description field that stays a
+// curated text pick rather than an image-illustrated catalog entry — a photo
+// doesn't help distinguish "restrição" from "retenção de queda", it's a
+// declared intent, not something visually identifiable. Grounded in
+// NR-35/EN 795 use categories. The other four (tipo do sistema, tipo de
+// dispositivo, estrutura suporte, condição ambiental) moved to the
+// customizable, image-illustrated field_option_catalog — see
+// FieldOptionKey/FieldOptionCatalogItem in types.ts.
+export const SYSTEM_PURPOSE_OPTIONS = [
+  "Restrição de movimentação",
+  "Retenção de queda",
+  "Posicionamento no trabalho",
+  "Acesso por corda / trabalho suspenso",
+  "Resgate",
+] as const;
 
 // Fallback PDF brand — used whenever a company hasn't set its own logo/colors.
 export const DEFAULT_BRAND_PRIMARY_COLOR = "#151F5C";
@@ -60,6 +66,47 @@ export const ANCHOR_ISSUE_TAGS = [
   { value: "rosca_danificada", label: "Rosca danificada" },
   { value: "identificacao_ausente", label: "Etiqueta/identificação ausente ou ilegível" },
 ] as const;
+
+// Fixed checklist for master-template section 4 ("VERIFICAÇÃO DE
+// IDENTIFICAÇÃO DO DISPOSITIVO") — same five items on every report; the
+// engineer fills in situation (C/NC/NA) and observation during review.
+export const DEVICE_VERIFICATION_LABELS = [
+  "Fabricante / identificação",
+  "Modelo / código / série",
+  "Material / capacidade indicada",
+  "Limite de usuários / força aplicável",
+  "Rastreabilidade e documentação",
+] as const;
+
+export const VERIFICATION_SITUATION_LABELS: Record<string, string> = {
+  C: "Conforme",
+  NC: "Não conforme",
+  NA: "Não aplicável",
+};
+
+export const NONCONFORMITY_SEVERITY_LABELS: Record<string, string> = {
+  atencao: "Atenção",
+  critica: "Crítica",
+};
+
+export const NONCONFORMITY_STATUS_LABELS: Record<string, string> = {
+  aberta: "Aberta",
+  em_andamento: "Em andamento",
+  resolvida: "Resolvida",
+};
+
+// Annex index categories (master template section A) — what the engineer can
+// attach to a laudo before finalizing it.
+export const ATTACHMENT_CATEGORY_LABELS: Record<string, string> = {
+  art: "ART — Anotação de Responsabilidade Técnica",
+  calibration_certificate: "Certificado de calibração do instrumento de ensaio",
+  site_plan: "Croqui / planta de localização e identificação dos pontos",
+  datasheet: "Fichas técnicas e certificados dos dispositivos/acessórios",
+  project_memorial: "Projeto / memorial de cálculo / detalhes de fixação",
+  lab_report: "Relatórios laboratoriais / resistência / corrosão",
+  point_labels: "Etiquetas de identificação dos pontos",
+  other: "Outros documentos",
+};
 
 export const USER_ROLE_LABELS: Record<string, string> = {
   zoppi_admin: "Zoppi Admin",

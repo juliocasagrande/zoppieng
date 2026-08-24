@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { REPORT_NAME_PRESETS } from "@zoppi/shared";
+import { formatCnpj, REPORT_NAME_PRESETS, type CnpjLookupResult, type Company } from "@zoppi/shared";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../AuthContext.js";
-import { Card } from "../../shared/components/Card.js";
 import { FormField, inputStyle } from "../../shared/components/FormField.js";
 import { Button } from "../../shared/components/Button.js";
 import { Alert } from "../../shared/components/Alert.js";
+import { Modal } from "../../shared/components/Modal.js";
+import { CnpjLookupField } from "../../shared/components/CnpjLookupField.js";
+import { Section, StepPills } from "../../shared/components/WizardParts.js";
 
 const CUSTOM_NAME = "__custom__";
-const NEW_PARTY = "__new__";
-const NEW_SITE = "__new__";
 
 interface SavedParty {
   legalName: string;
@@ -37,17 +37,34 @@ const emptyParty: PartyState = { legalName: "", cnpj: "", address: "" };
 
 type StepId = "name" | "contratada" | "contratante" | "site" | "review";
 
-const STEPS: { id: StepId; title: string }[] = [
-  { id: "name", title: "Nome do laudo" },
-  { id: "contratada", title: "Contratada" },
-  { id: "contratante", title: "Contratante" },
-  { id: "site", title: "Local" },
-  { id: "review", title: "Revisão" },
+// Each step carries an accent color (drawn only from design tokens — see
+// tokens.css) so the modal's title, progress bar and section header visually
+// change as the user moves through the wizard, making section boundaries
+// obvious at a glance.
+const STEPS: { id: StepId; title: string; color: string }[] = [
+  { id: "name", title: "Nome do laudo", color: "var(--color-navy)" },
+  { id: "contratada", title: "Contratada", color: "var(--color-orange)" },
+  { id: "contratante", title: "Contratante", color: "var(--color-navy-light)" },
+  { id: "site", title: "Local", color: "var(--color-success)" },
+  { id: "review", title: "Revisão", color: "var(--color-orange)" },
 ];
+
+// ART and O.S./contrato are entered by the engineer during review (only
+// known once someone with technical responsibility looks at the job), not
+// here at report creation — see ReportDetail.tsx's ReviewDetailsEditor. The
+// per-point system description (tipo/finalidade/capacidade/estrutura/
+// fixação/condição ambiental) is captured by the field technician per anchor
+// point — see FieldWizard.tsx — since it can vary point to point.
+interface SiteExtraState {
+  siteArea: string;
+  surveyDate: string;
+}
+
+const emptySiteExtra: SiteExtraState = { siteArea: "", surveyDate: "" };
 
 const gridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 16,
 };
 
@@ -58,10 +75,14 @@ export function ReportWizardPage() {
   const [maxReached, setMaxReached] = useState(0);
   const [namePreset, setNamePreset] = useState(REPORT_NAME_PRESETS[0]);
   const [customName, setCustomName] = useState("");
+  const [description, setDescription] = useState("");
+  const [companyId, setCompanyId] = useState(profile?.company_id ?? "");
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [siteAddress, setSiteAddress] = useState("");
   const [siteIdentification, setSiteIdentification] = useState("");
   const [contratante, setContratante] = useState<PartyState>(emptyParty);
   const [contratada, setContratada] = useState<PartyState>(emptyParty);
+  const [siteExtra, setSiteExtra] = useState<SiteExtraState>(emptySiteExtra);
   const [savedContratantes, setSavedContratantes] = useState<SavedParty[]>([]);
   const [savedContratadas, setSavedContratadas] = useState<SavedParty[]>([]);
   const [savedSites, setSavedSites] = useState<SavedSite[]>([]);
@@ -69,6 +90,10 @@ export function ReportWizardPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (profile?.company_id) setCompanyId(profile.company_id);
+    if (profile?.role === "zoppi_admin" || profile?.role === "zoppi_engineer") {
+      api.get("/companies").then((data: Company[]) => setCompanies(data ?? [])).catch(() => {});
+    }
     api
       .get("/reports/parties/saved")
       .then((data: { contratante: SavedParty[]; contratada: SavedParty[] }) => {
@@ -80,10 +105,10 @@ export function ReportWizardPage() {
       .get("/reports/sites/saved")
       .then((data: SavedSite[]) => setSavedSites(data ?? []))
       .catch(() => {});
-  }, []);
+  }, [profile?.company_id, profile?.role]);
 
-  function selectSaved(list: SavedParty[], legalName: string, setParty: (p: PartyState) => void) {
-    if (legalName === NEW_PARTY) {
+  function selectSaved(legalName: string | null, setParty: (p: PartyState) => void, list: SavedParty[]) {
+    if (!legalName) {
       setParty(emptyParty);
       return;
     }
@@ -91,8 +116,8 @@ export function ReportWizardPage() {
     if (match) setParty({ legalName: match.legalName, cnpj: match.cnpj ?? "", address: match.address ?? "" });
   }
 
-  function selectSavedSite(identification: string) {
-    if (identification === NEW_SITE) {
+  function selectSavedSite(identification: string | null) {
+    if (!identification) {
       setSiteIdentification("");
       setSiteAddress("");
       return;
@@ -105,7 +130,7 @@ export function ReportWizardPage() {
   }
 
   function isStepValid(id: StepId): boolean {
-    if (id === "name") return namePreset !== CUSTOM_NAME || customName.trim().length > 0;
+    if (id === "name") return companyId.length > 0 && (namePreset !== CUSTOM_NAME || customName.trim().length > 0);
     if (id === "contratada") return contratada.legalName.trim().length > 0;
     if (id === "contratante") return contratante.legalName.trim().length > 0;
     return true;
@@ -134,7 +159,7 @@ export function ReportWizardPage() {
   }
 
   async function handleSubmit() {
-    if (!profile?.company_id) {
+    if (!companyId) {
       setError("Seu usuário não está vinculado a uma empresa assinante.");
       return;
     }
@@ -146,10 +171,13 @@ export function ReportWizardPage() {
     setError(null);
     try {
       const report = await api.post("/reports", {
-        companyId: profile.company_id,
+        companyId,
         name: namePreset === CUSTOM_NAME ? customName : namePreset,
+        description: description || undefined,
         siteAddress,
         siteIdentification,
+        siteArea: siteExtra.siteArea || undefined,
+        surveyDate: siteExtra.surveyDate || undefined,
         contratante: { legalName: contratante.legalName, cnpj: contratante.cnpj || undefined, address: contratante.address || undefined },
         contratada: { legalName: contratada.legalName, cnpj: contratada.cnpj || undefined, address: contratada.address || undefined },
       });
@@ -165,20 +193,53 @@ export function ReportWizardPage() {
   const reportName = namePreset === CUSTOM_NAME ? customName : namePreset;
 
   return (
-    <div style={{ width: "100%" }}>
-      <h1>Novo laudo de Ancoragem</h1>
-
-      <StepProgress steps={STEPS} current={stepIndex} maxReached={maxReached} onSelect={goTo} />
+    <Modal
+      title="Novo laudo de Ancoragem"
+      subtitle={step.title}
+      accentColor={step.color}
+      onClose={() => navigate("/app/reports")}
+      progress={{ current: stepIndex + 1, total: STEPS.length }}
+      width={760}
+      footer={
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Button type="button" variant="outline" onClick={goBack} disabled={stepIndex === 0} style={{ flex: "1 1 140px" }}>
+            ← Voltar
+          </Button>
+          {step.id === "review" ? (
+            <Button type="button" onClick={handleSubmit} disabled={loading} style={{ flex: "2 1 200px", background: step.color, borderColor: step.color }}>
+              {loading ? "Criando…" : "Criar laudo"}
+            </Button>
+          ) : (
+            <Button type="button" onClick={goNext} style={{ flex: "2 1 200px", background: step.color, borderColor: step.color }}>
+              Próximo →
+            </Button>
+          )}
+        </div>
+      }
+    >
+      <StepPills<StepId> steps={STEPS} current={stepIndex} maxReached={maxReached} onSelect={goTo} />
 
       {error && (
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ margin: "16px 0" }}>
           <Alert tone="danger">{error}</Alert>
         </div>
       )}
 
-      <Card style={{ padding: "clamp(20px, 4vw, 32px)" }}>
+      <div style={{ marginTop: 20 }}>
         {step.id === "name" && (
-          <div>
+          <Section color={step.color} title="Nome do laudo" description="Como esse laudo vai aparecer na lista e nos documentos.">
+            {(profile?.role === "zoppi_admin" || profile?.role === "zoppi_engineer") && (
+              <FormField label="Empresa assinante">
+                <select style={inputStyle} required value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+                  <option value="">Selecione a empresa...</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.legal_name}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            )}
             <FormField label="Nome do laudo">
               <select style={inputStyle} value={namePreset} onChange={(e) => setNamePreset(e.target.value)}>
                 {REPORT_NAME_PRESETS.map((preset) => (
@@ -194,42 +255,56 @@ export function ReportWizardPage() {
                 <input style={inputStyle} value={customName} onChange={(e) => setCustomName(e.target.value)} autoFocus />
               </FormField>
             )}
-          </div>
+            <FormField label="Descrição breve (opcional — o que é/para que serve este laudo)">
+              <textarea
+                style={{ ...inputStyle, minHeight: 80 }}
+                placeholder="Ex.: Inspeção anual dos pontos de ancoragem do telhado do galpão 2…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </FormField>
+          </Section>
         )}
 
         {step.id === "contratada" && (
           <PartyFields
+            color={step.color}
             title="Empresa onde será feito o laudo (contratada)"
             saved={savedContratadas}
             party={contratada}
-            onSelectSaved={(name) => selectSaved(savedContratadas, name, setContratada)}
+            onSelectSaved={(name) => selectSaved(name, setContratada, savedContratadas)}
             onChange={setContratada}
           />
         )}
 
         {step.id === "contratante" && (
           <PartyFields
+            color={step.color}
             title="Empresa contratante"
             saved={savedContratantes}
             party={contratante}
-            onSelectSaved={(name) => selectSaved(savedContratantes, name, setContratante)}
+            onSelectSaved={(name) => selectSaved(name, setContratante, savedContratantes)}
             onChange={setContratante}
           />
         )}
 
         {step.id === "site" && (
           <SiteFields
+            color={step.color}
             saved={savedSites}
             siteIdentification={siteIdentification}
             siteAddress={siteAddress}
+            siteExtra={siteExtra}
             onSelectSaved={selectSavedSite}
             onChangeIdentification={setSiteIdentification}
             onChangeAddress={setSiteAddress}
+            onChangeExtra={setSiteExtra}
           />
         )}
 
         {step.id === "review" && (
           <ReviewStep
+            color={step.color}
             reportName={reportName}
             contratada={contratada}
             contratante={contratante}
@@ -238,171 +313,157 @@ export function ReportWizardPage() {
             onEdit={goTo}
           />
         )}
-
-        <div style={{ display: "flex", gap: 12, marginTop: 28, flexWrap: "wrap" }}>
-          <Button type="button" variant="outline" onClick={goBack} disabled={stepIndex === 0} style={{ flex: "1 1 140px" }}>
-            ← Voltar
-          </Button>
-          {step.id === "review" ? (
-            <Button type="button" onClick={handleSubmit} disabled={loading} style={{ flex: "2 1 200px" }}>
-              {loading ? "Criando…" : "Criar laudo"}
-            </Button>
-          ) : (
-            <Button type="button" onClick={goNext} style={{ flex: "2 1 200px" }}>
-              Próximo →
-            </Button>
-          )}
-        </div>
-      </Card>
-    </div>
+      </div>
+    </Modal>
   );
 }
 
-function StepProgress({
-  steps,
-  current,
-  maxReached,
+// Saved records from past reports render as selectable chips instead of a
+// plain <select> — easier to scan and it's obvious that clicking one reuses
+// its data.
+function SavedChips<T extends { legalName?: string; siteIdentification?: string }>({
+  items,
+  getLabel,
+  getKey,
+  selectedKey,
   onSelect,
+  newLabel,
 }: {
-  steps: { id: StepId; title: string }[];
-  current: number;
-  maxReached: number;
-  onSelect: (index: number) => void;
+  items: T[];
+  getLabel: (item: T) => string;
+  getKey: (item: T) => string;
+  selectedKey: string;
+  onSelect: (key: string | null) => void;
+  newLabel: string;
 }) {
+  if (items.length === 0) return null;
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0 20px" }}>
-      {steps.map((s, i) => {
-        const active = i === current;
-        const reachable = i <= maxReached;
-        return (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onSelect(i)}
-            disabled={!reachable}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 14px",
-              borderRadius: "var(--radius)",
-              border: `1px solid ${active ? "var(--color-orange)" : "var(--color-gray-light)"}`,
-              background: active ? "rgba(232,96,32,0.08)" : "var(--color-white)",
-              color: active ? "var(--color-orange)" : reachable ? "var(--color-text)" : "var(--color-gray)",
-              cursor: reachable ? "pointer" : "default",
-              fontSize: "0.82rem",
-              fontWeight: 600,
-            }}
-          >
-            <span
+    <div style={{ marginBottom: 20 }}>
+      <div className="zp-eyebrow" style={{ marginBottom: 8 }}>
+        Reutilizar dados já cadastrados
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 20,
+            border: `1.5px dashed ${selectedKey === "" ? "var(--color-orange)" : "var(--color-gray-light)"}`,
+            background: "var(--color-white)",
+            color: selectedKey === "" ? "var(--color-orange)" : "var(--color-gray)",
+            fontWeight: 600,
+            fontSize: "0.82rem",
+            cursor: "pointer",
+          }}
+        >
+          {newLabel}
+        </button>
+        {items.map((item) => {
+          const key = getKey(item);
+          const active = selectedKey === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onSelect(key)}
               style={{
-                width: 20,
-                height: 20,
-                borderRadius: "50%",
-                background: active ? "var(--color-orange)" : "var(--color-gray-light)",
-                color: active ? "#fff" : "var(--color-gray)",
-                fontSize: "0.7rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
+                padding: "8px 14px",
+                borderRadius: 20,
+                border: `1.5px solid ${active ? "var(--color-navy)" : "var(--color-gray-light)"}`,
+                background: active ? "rgba(29,43,127,0.08)" : "var(--color-white)",
+                color: active ? "var(--color-navy)" : "var(--color-text)",
+                fontWeight: 600,
+                fontSize: "0.82rem",
+                cursor: "pointer",
               }}
             >
-              {i + 1}
-            </span>
-            {s.title}
-          </button>
-        );
-      })}
+              {getLabel(item)}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 function PartyFields({
+  color,
   title,
   saved,
   party,
   onSelectSaved,
   onChange,
 }: {
+  color: string;
   title: string;
   saved: SavedParty[];
   party: PartyState;
-  onSelectSaved: (legalName: string) => void;
+  onSelectSaved: (legalName: string | null) => void;
   onChange: (party: PartyState) => void;
 }) {
   return (
-    <div>
-      <div className="zp-eyebrow" style={{ marginBottom: 12 }}>
-        {title}
-      </div>
-      {saved.length > 0 && (
-        <FormField label="Empresa salva">
-          <select
-            style={inputStyle}
-            value={saved.some((p) => p.legalName === party.legalName) ? party.legalName : NEW_PARTY}
-            onChange={(e) => onSelectSaved(e.target.value)}
-          >
-            <option value={NEW_PARTY}>Nova empresa…</option>
-            {saved.map((p) => (
-              <option key={p.legalName} value={p.legalName}>
-                {p.legalName}
-              </option>
-            ))}
-          </select>
-        </FormField>
-      )}
-      <div style={gridStyle}>
-        <FormField label="Razão social">
-          <input style={inputStyle} value={party.legalName} onChange={(e) => onChange({ ...party, legalName: e.target.value })} />
-        </FormField>
-        <FormField label="CNPJ">
-          <input style={inputStyle} value={party.cnpj} onChange={(e) => onChange({ ...party, cnpj: e.target.value })} />
-        </FormField>
-      </div>
+    <Section color={color} title={title} description="Preencha o CNPJ para buscar os dados automaticamente, ou reutilize uma empresa já cadastrada.">
+      <SavedChips
+        items={saved}
+        getLabel={(p) => p.legalName}
+        getKey={(p) => p.legalName}
+        selectedKey={saved.some((p) => p.legalName === party.legalName) ? party.legalName : ""}
+        onSelect={onSelectSaved}
+        newLabel="+ Nova empresa"
+      />
+      <CnpjLookupField
+        value={party.cnpj}
+        onChange={(cnpj) => onChange({ ...party, cnpj })}
+        onResult={(result: CnpjLookupResult) =>
+          onChange({
+            legalName: result.legalName || party.legalName,
+            cnpj: result.cnpj,
+            address: result.address || party.address,
+          })
+        }
+      />
+      <FormField label="Razão social">
+        <input style={inputStyle} value={party.legalName} onChange={(e) => onChange({ ...party, legalName: e.target.value })} />
+      </FormField>
       <FormField label="Endereço">
         <input style={inputStyle} value={party.address} onChange={(e) => onChange({ ...party, address: e.target.value })} />
       </FormField>
-    </div>
+    </Section>
   );
 }
 
 function SiteFields({
+  color,
   saved,
   siteIdentification,
   siteAddress,
+  siteExtra,
   onSelectSaved,
   onChangeIdentification,
   onChangeAddress,
+  onChangeExtra,
 }: {
+  color: string;
   saved: SavedSite[];
   siteIdentification: string;
   siteAddress: string;
-  onSelectSaved: (identification: string) => void;
+  siteExtra: SiteExtraState;
+  onSelectSaved: (identification: string | null) => void;
   onChangeIdentification: (v: string) => void;
   onChangeAddress: (v: string) => void;
+  onChangeExtra: (s: SiteExtraState) => void;
 }) {
   return (
-    <div>
-      <div className="zp-eyebrow" style={{ marginBottom: 12 }}>
-        Local onde será feito o laudo
-      </div>
-      {saved.length > 0 && (
-        <FormField label="Local salvo">
-          <select
-            style={inputStyle}
-            value={saved.some((s) => s.siteIdentification === siteIdentification) ? siteIdentification : NEW_SITE}
-            onChange={(e) => onSelectSaved(e.target.value)}
-          >
-            <option value={NEW_SITE}>Novo local…</option>
-            {saved.map((s) => (
-              <option key={s.siteIdentification} value={s.siteIdentification}>
-                {s.siteIdentification}
-              </option>
-            ))}
-          </select>
-        </FormField>
-      )}
+    <Section color={color} title="Local onde será feito o laudo">
+      <SavedChips
+        items={saved}
+        getLabel={(s) => s.siteIdentification}
+        getKey={(s) => s.siteIdentification}
+        selectedKey={saved.some((s) => s.siteIdentification === siteIdentification) ? siteIdentification : ""}
+        onSelect={onSelectSaved}
+        newLabel="+ Novo local"
+      />
       <div style={gridStyle}>
         <FormField label="Identificação da obra/planta">
           <input style={inputStyle} value={siteIdentification} onChange={(e) => onChangeIdentification(e.target.value)} />
@@ -410,12 +471,19 @@ function SiteFields({
         <FormField label="Endereço do local">
           <input style={inputStyle} value={siteAddress} onChange={(e) => onChangeAddress(e.target.value)} />
         </FormField>
+        <FormField label="Área / pavimento (opcional)">
+          <input style={inputStyle} value={siteExtra.siteArea} onChange={(e) => onChangeExtra({ ...siteExtra, siteArea: e.target.value })} />
+        </FormField>
+        <FormField label="Data do levantamento (opcional)">
+          <input style={inputStyle} type="date" value={siteExtra.surveyDate} onChange={(e) => onChangeExtra({ ...siteExtra, surveyDate: e.target.value })} />
+        </FormField>
       </div>
-    </div>
+    </Section>
   );
 }
 
 function ReviewStep({
+  color,
   reportName,
   contratada,
   contratante,
@@ -423,6 +491,7 @@ function ReviewStep({
   siteAddress,
   onEdit,
 }: {
+  color: string;
   reportName: string;
   contratada: PartyState;
   contratante: PartyState;
@@ -431,21 +500,23 @@ function ReviewStep({
   onEdit: (index: number) => void;
 }) {
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <ReviewRow title="Nome do laudo" onEdit={() => onEdit(0)}>
-        <p style={{ margin: 0 }}>{reportName || "—"}</p>
-      </ReviewRow>
-      <ReviewRow title="Contratada" onEdit={() => onEdit(1)}>
-        <PartySummary party={contratada} />
-      </ReviewRow>
-      <ReviewRow title="Contratante" onEdit={() => onEdit(2)}>
-        <PartySummary party={contratante} />
-      </ReviewRow>
-      <ReviewRow title="Local" onEdit={() => onEdit(3)}>
-        <p style={{ margin: 0 }}>{siteIdentification || "—"}</p>
-        {siteAddress && <p style={{ margin: "2px 0 0", color: "var(--color-gray)" }}>{siteAddress}</p>}
-      </ReviewRow>
-    </div>
+    <Section color={color} title="Revise antes de criar" description="Toque em “Editar” em qualquer cartão para corrigir. ART, O.S./contrato e a descrição técnica do sistema são preenchidas depois, na revisão de engenharia e em campo.">
+      <div style={{ display: "grid", gap: 12 }}>
+        <ReviewRow title="Nome do laudo" onEdit={() => onEdit(0)}>
+          <p style={{ margin: 0 }}>{reportName || "—"}</p>
+        </ReviewRow>
+        <ReviewRow title="Contratada" onEdit={() => onEdit(1)}>
+          <PartySummary party={contratada} />
+        </ReviewRow>
+        <ReviewRow title="Contratante" onEdit={() => onEdit(2)}>
+          <PartySummary party={contratante} />
+        </ReviewRow>
+        <ReviewRow title="Local" onEdit={() => onEdit(3)}>
+          <p style={{ margin: 0 }}>{siteIdentification || "—"}</p>
+          {siteAddress && <p style={{ margin: "2px 0 0", color: "var(--color-gray)" }}>{siteAddress}</p>}
+        </ReviewRow>
+      </div>
+    </Section>
   );
 }
 
@@ -481,7 +552,7 @@ function PartySummary({ party }: { party: PartyState }) {
   return (
     <div>
       <p style={{ margin: 0, fontWeight: 600 }}>{party.legalName}</p>
-      {party.cnpj && <p style={{ margin: "2px 0 0" }}>{party.cnpj}</p>}
+      {party.cnpj && <p style={{ margin: "2px 0 0" }}>{formatCnpj(party.cnpj)}</p>}
       {party.address && <p style={{ margin: "2px 0 0", color: "var(--color-gray)" }}>{party.address}</p>}
     </div>
   );

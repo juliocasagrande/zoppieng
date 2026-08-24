@@ -11,3 +11,9 @@ export async function hasActiveModuleAccess(companyId: string, moduleId: string)
     .maybeSingle();
   return data?.status === "active" || data?.status === "trialing";
 }
+
+export async function hasActiveModuleAccessBySlug(companyId: string, moduleSlug: string): Promise<boolean> {
+  const { data: module } = await supabaseAdmin.from("modules").select("id").eq("slug", moduleSlug).eq("active", true).maybeSingle();
+  if (!module) return false;
+  return hasActiveModuleAccess(companyId, module.id);
+}
