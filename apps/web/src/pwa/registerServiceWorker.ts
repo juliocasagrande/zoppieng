@@ -2,8 +2,8 @@ const UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
  * Registers the PWA worker and keeps long-running tabs/installations on the
- * latest deployment. Vite's generated worker precaches hashed assets, so a
- * controller change is a reliable signal that a complete new build is ready.
+ * latest deployment. Updates are applied while the document is hidden so the
+ * user does not see the application flash while a new build is loaded.
  */
 export function registerServiceWorker(): void {
   if (!("serviceWorker" in navigator) || import.meta.env.DEV) return;
@@ -12,11 +12,19 @@ export function registerServiceWorker(): void {
   // exists, however, a controller change means a new deployment took over.
   let hasController = navigator.serviceWorker.controller !== null;
   let isReloading = false;
+  let reloadPending = false;
+
+  const applyUpdateWhenHidden = () => {
+    if (!reloadPending || document.visibilityState !== "hidden" || isReloading) return;
+
+    isReloading = true;
+    window.location.reload();
+  };
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (hasController && !isReloading) {
-      isReloading = true;
-      window.location.reload();
+    if (hasController) {
+      reloadPending = true;
+      applyUpdateWhenHidden();
       return;
     }
 
@@ -55,9 +63,12 @@ export function registerServiceWorker(): void {
           checkForUpdate();
           window.setInterval(checkForUpdate, UPDATE_INTERVAL_MS);
           window.addEventListener("online", checkForUpdate);
-          window.addEventListener("focus", checkForUpdate);
           document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible") checkForUpdate();
+            if (document.visibilityState === "hidden") {
+              applyUpdateWhenHidden();
+            } else {
+              checkForUpdate();
+            }
           });
         })
         .catch((error: unknown) => {

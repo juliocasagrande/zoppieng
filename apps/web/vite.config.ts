@@ -26,7 +26,7 @@ export default defineConfig({
       },
       workbox: {
         // Do not leave a new deployment waiting for every old tab to close.
-        // The client reloads as soon as this worker takes control.
+        // The client reloads in the background after this worker takes control.
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
