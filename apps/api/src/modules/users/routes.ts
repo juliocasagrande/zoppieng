@@ -78,16 +78,51 @@ usersRouter.post("/", requireRole("zoppi_admin", "company_admin"), async (req, r
   res.status(201).json(data);
 });
 
+// Fields a caller may ever set via this endpoint, keyed by who's allowed to
+// set them. Never spread req.body directly into the update — role/company_id/
+// active are privilege-bearing columns.
+const SELF_EDITABLE_FIELDS = ["full_name", "phone"] as const;
+const ADMIN_EDITABLE_FIELDS = ["full_name", "phone", "crea_number", "active", "role", "company_id"] as const;
+const COMPANY_ADMIN_EDITABLE_FIELDS = ["full_name", "phone", "active", "role"] as const;
+
+function pick<T extends string>(body: Record<string, unknown>, fields: readonly T[]): Partial<Record<T, unknown>> {
+  const result: Partial<Record<T, unknown>> = {};
+  for (const field of fields) {
+    if (field in body) result[field] = body[field];
+  }
+  return result;
+}
+
 usersRouter.patch("/:id", async (req, res) => {
   const target = req.params.id;
   const isSelf = target === req.user!.id;
-  const isCompanyAdminOfSameCompany = req.user!.role === "company_admin";
-  if (!isSelf && req.user!.role !== "zoppi_admin" && !isCompanyAdminOfSameCompany) {
+
+  const { data: targetUser, error: targetError } = await supabaseAdmin
+    .from("users")
+    .select("id, company_id, role")
+    .eq("id", target)
+    .single();
+  if (targetError || !targetUser) return res.status(404).json({ error: "User not found" });
+
+  let patch: Partial<Record<string, unknown>>;
+  if (req.user!.role === "zoppi_admin") {
+    patch = pick(req.body, ADMIN_EDITABLE_FIELDS);
+  } else if (req.user!.role === "company_admin" && req.user!.companyId && targetUser.company_id === req.user!.companyId) {
+    // Company admins may only promote/demote within their own company's roles.
+    patch = pick(req.body, COMPANY_ADMIN_EDITABLE_FIELDS);
+    if (patch.role !== undefined && patch.role !== "company_admin" && patch.role !== "company_operational") {
+      return res.status(403).json({ error: "Company admins can only assign company roles" });
+    }
+    delete patch.company_id;
+  } else if (isSelf) {
+    patch = pick(req.body, SELF_EDITABLE_FIELDS);
+  } else {
     return res.status(403).json({ error: "Forbidden" });
   }
+
   const { data, error } = await supabaseAdmin
     .from("users")
-    .update({ ...req.body, updated_at: new Date().toISOString() })
+    .update({ ...patch, updated_at: new Date().toISOString() })
     .eq("id", target)
     .select()
     .single();

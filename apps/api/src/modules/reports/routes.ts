@@ -4,7 +4,7 @@ import { createReportSchema, normalizeCnpj, reportAttachmentConfirmSchema } from
 import { supabaseAdmin } from "../../lib/supabase.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { hasActiveModuleAccess } from "./accessGuard.js";
-import { nextReportNumber } from "./reportNumber.js";
+import { isDuplicateReportNumberError, nextReportNumber } from "./reportNumber.js";
 import { signFieldToken, hashToken } from "../../middleware/fieldToken.js";
 import { env } from "../../env.js";
 import { withRetry } from "../../lib/retry.js";
@@ -128,32 +128,44 @@ reportsRouter.post("/", requireRole("zoppi_admin", "zoppi_engineer", "company_ad
   const validUntil = new Date();
   validUntil.setMonth(validUntil.getMonth() + validityMonths);
 
-  const reportNumber = await nextReportNumber();
-
-  let report: { id: string; [key: string]: unknown };
+  // report_number is only a starting guess (see reportNumber.ts) — concurrent
+  // creations can race for the same value, so retry with the next candidate
+  // whenever the unique constraint rejects it, instead of blindly retrying
+  // the same doomed insert.
+  let report: { id: string; [key: string]: unknown } | undefined;
   try {
-    report = await withRetry(async () => {
-      const r = await supabaseAdmin
-        .from("reports")
-        .insert({
-          module_id: moduleId,
-          company_id: input.companyId,
-          name: input.name,
-          description: input.description ?? null,
-          site_address: input.siteAddress ?? null,
-          site_identification: input.siteIdentification ?? null,
-          site_area: input.siteArea ?? null,
-          survey_date: input.surveyDate ?? null,
-          status: "draft",
-          report_number: reportNumber,
-          valid_until: validUntil.toISOString(),
-          created_by: req.user!.id,
-        })
-        .select()
-        .single();
-      if (r.error || !r.data) throw r.error ?? new Error("Failed to create report");
-      return r.data;
-    });
+    for (let offset = 0; offset < 5; offset++) {
+      const reportNumber = await nextReportNumber(offset);
+      try {
+        report = await withRetry(async () => {
+          const r = await supabaseAdmin
+            .from("reports")
+            .insert({
+              module_id: moduleId,
+              company_id: input.companyId,
+              name: input.name,
+              description: input.description ?? null,
+              site_address: input.siteAddress ?? null,
+              site_identification: input.siteIdentification ?? null,
+              site_area: input.siteArea ?? null,
+              survey_date: input.surveyDate ?? null,
+              status: "draft",
+              report_number: reportNumber,
+              valid_until: validUntil.toISOString(),
+              created_by: req.user!.id,
+            })
+            .select()
+            .single();
+          if (r.error || !r.data) throw r.error ?? new Error("Failed to create report");
+          return r.data;
+        });
+        break;
+      } catch (err) {
+        if (isDuplicateReportNumberError(err as { code?: string; message?: string })) continue;
+        throw err;
+      }
+    }
+    if (!report) throw new Error("Não foi possível gerar um número de laudo único.");
   } catch (err) {
     const message = err instanceof Error ? err.message : "Falha ao criar o laudo.";
     return res.status(502).json({ error: message });
@@ -229,10 +241,12 @@ reportsRouter.post("/:id/field-links", requireRole("zoppi_admin", "zoppi_enginee
 // Requests generation of the report PDF / labels sheet (enqueues a job the
 // worker in src/jobs/worker.ts picks up).
 reportsRouter.post("/:id/pdf", async (req, res) => {
+  const report = await authorizeReportAccess(req, res);
+  if (!report) return;
   const kind = (req.body?.kind as string) === "labels" ? "labels" : "report";
   const { data: job, error } = await supabaseAdmin
     .from("pdf_jobs")
-    .insert({ report_id: req.params.id, kind })
+    .insert({ report_id: report.id, kind })
     .select()
     .single();
   if (error) return res.status(400).json({ error: error.message });
@@ -335,11 +349,13 @@ reportsRouter.delete("/:id/attachments/:attachmentId", async (req, res) => {
 });
 
 reportsRouter.get("/:id/pdf-status", async (req, res) => {
+  const report = await authorizeReportAccess(req, res);
+  if (!report) return;
   const kind = (req.query.kind as string) === "labels" ? "labels" : "report";
   const { data } = await supabaseAdmin
     .from("pdf_jobs")
     .select("*")
-    .eq("report_id", req.params.id)
+    .eq("report_id", report.id)
     .eq("kind", kind)
     .order("created_at", { ascending: false })
     .limit(1)

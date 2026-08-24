@@ -24,5 +24,9 @@ export interface PaymentProvider {
   createSubscription(request: CreateSubscriptionRequest): Promise<CreateSubscriptionResult>;
   cancelSubscription(providerSubscriptionId: string): Promise<void>;
   getSubscriptionStatus(providerSubscriptionId: string): Promise<WebhookEvent["status"] | null>;
-  parseWebhook(rawBody: unknown, headers: Record<string, string | string[] | undefined>): WebhookEvent | null;
+  parseWebhook(
+    rawBody: unknown,
+    headers: Record<string, string | string[] | undefined>,
+    query: Record<string, unknown>,
+  ): WebhookEvent | null;
 }

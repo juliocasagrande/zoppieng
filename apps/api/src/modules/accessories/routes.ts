@@ -67,15 +67,22 @@ accessoriesRouter.post("/:id/image-upload-url", requireRole("zoppi_admin", "comp
   res.json({ path, token: data.token, signedUrl: data.signedUrl });
 });
 
+const ACCESSORY_EDITABLE_FIELDS = ["name", "category", "manufacturer", "spec_diameter_mm", "spec_load_capacity_kn", "spec_notes", "image_path", "active"] as const;
+
 accessoriesRouter.patch("/:id", requireRole("zoppi_admin", "company_admin"), async (req, res) => {
   const { data: existing, error: fetchError } = await supabaseAdmin.from("accessory_catalog").select("*").eq("id", req.params.id).single();
   if (fetchError || !existing) return res.status(404).json({ error: "Not found" });
   if (req.user!.role === "company_admin" && existing.company_id !== req.user!.companyId) {
     return res.status(403).json({ error: "Forbidden" });
   }
+  const body = req.body as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  for (const field of ACCESSORY_EDITABLE_FIELDS) {
+    if (field in body) patch[field] = body[field];
+  }
   const { data, error } = await supabaseAdmin
     .from("accessory_catalog")
-    .update({ ...req.body, updated_at: new Date().toISOString() })
+    .update({ ...patch, updated_at: new Date().toISOString() })
     .eq("id", req.params.id)
     .select()
     .single();

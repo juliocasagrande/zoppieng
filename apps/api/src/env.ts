@@ -53,3 +53,10 @@ export function assertSupabaseConfigured() {
   required("SUPABASE_URL", env.supabaseUrl || undefined);
   required("SUPABASE_SERVICE_ROLE_KEY", env.supabaseServiceRoleKey || undefined);
 }
+
+// The "dev-only-insecure-secret" fallback above must never be reachable in
+// production — it's a publicly-known string, so anyone could forge a valid
+// field-access JWT for any report if it were ever used to sign one for real.
+if (process.env.NODE_ENV === "production" && env.fieldTokenSecret === "dev-only-insecure-secret") {
+  throw new Error("Missing required environment variable: FIELD_TOKEN_SECRET");
+}

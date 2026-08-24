@@ -24,7 +24,7 @@ export class MockPaymentProvider implements PaymentProvider {
     return null;
   }
 
-  parseWebhook(): WebhookEvent | null {
+  parseWebhook(_rawBody: unknown, _headers: unknown, _query: unknown): WebhookEvent | null {
     return null;
   }
 }

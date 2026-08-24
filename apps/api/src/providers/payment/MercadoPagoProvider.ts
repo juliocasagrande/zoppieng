@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { env } from "../../env.js";
 import type {
   CreateSubscriptionRequest,
@@ -72,9 +73,49 @@ export class MercadoPagoProvider implements PaymentProvider {
     return null;
   }
 
-  parseWebhook(rawBody: unknown): WebhookEvent | null {
+  // Verifies Mercado Pago's HMAC webhook signature (x-signature / x-request-id
+  // headers) before trusting the payload — otherwise anyone could POST an
+  // arbitrary subscription id to this public, unauthenticated endpoint.
+  // https://www.mercadopago.com.br/developers/en/docs/your-integrations/notifications/webhooks
+  parseWebhook(
+    rawBody: unknown,
+    headers: Record<string, string | string[] | undefined>,
+    query: Record<string, unknown>,
+  ): WebhookEvent | null {
     const body = rawBody as { data?: { id?: string }; action?: string; type?: string } | undefined;
     if (!body?.data?.id) return null;
+    if (!env.mercadopagoWebhookSecret) {
+      console.error("[MercadoPagoProvider] MERCADOPAGO_WEBHOOK_SECRET is not configured; rejecting webhook.");
+      return null;
+    }
+
+    const signatureHeader = headers["x-signature"];
+    const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
+    if (!signature) return null;
+
+    const parts: Record<string, string> = {};
+    for (const piece of signature.split(",")) {
+      const [key, value] = piece.split("=");
+      if (key && value) parts[key.trim()] = value.trim();
+    }
+    const ts = parts.ts;
+    const v1 = parts.v1;
+    if (!ts || !v1) return null;
+
+    const requestIdHeader = headers["x-request-id"];
+    const requestId = Array.isArray(requestIdHeader) ? requestIdHeader[0] : requestIdHeader;
+    const dataId = (query["data.id"] as string | undefined) ?? body.data.id;
+
+    const manifest = `id:${dataId};request-id:${requestId ?? ""};ts:${ts};`;
+    const expected = crypto.createHmac("sha256", env.mercadopagoWebhookSecret).update(manifest).digest("hex");
+
+    const expectedBuf = Buffer.from(expected, "hex");
+    const gotBuf = Buffer.from(v1, "hex");
+    if (expectedBuf.length !== gotBuf.length || !crypto.timingSafeEqual(expectedBuf, gotBuf)) {
+      console.warn("[MercadoPagoProvider] webhook signature mismatch — rejecting.");
+      return null;
+    }
+
     // The webhook only identifies the subscription. The route fetches the
     // authoritative provider status before changing local access.
     return { providerSubscriptionId: body.data.id, status: "active", raw: rawBody };

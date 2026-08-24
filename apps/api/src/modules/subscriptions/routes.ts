@@ -128,7 +128,7 @@ subscriptionsRouter.post("/:id/cancel", requireRole("zoppi_admin", "company_admi
 export const paymentWebhookRouter = Router();
 paymentWebhookRouter.post("/mercadopago", async (req, res) => {
   const provider = getPaymentProvider();
-  const event = provider.parseWebhook(req.body, req.headers as Record<string, string>);
+  const event = provider.parseWebhook(req.body, req.headers as Record<string, string>, req.query as Record<string, unknown>);
   if (!event) return res.status(200).json({ ok: true });
 
   const status = await provider.getSubscriptionStatus(event.providerSubscriptionId);

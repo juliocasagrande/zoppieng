@@ -68,15 +68,22 @@ fieldOptionsRouter.post("/:id/image-upload-url", requireRole("zoppi_admin", "com
   res.json({ path, token: data.token, signedUrl: data.signedUrl });
 });
 
+const FIELD_OPTION_EDITABLE_FIELDS = ["value", "label", "image_path", "sort_order", "active"] as const;
+
 fieldOptionsRouter.patch("/:id", requireRole("zoppi_admin", "company_admin"), async (req, res) => {
   const { data: existing, error: fetchError } = await supabaseAdmin.from("field_option_catalog").select("*").eq("id", req.params.id).single();
   if (fetchError || !existing) return res.status(404).json({ error: "Not found" });
   if (req.user!.role === "company_admin" && existing.company_id !== req.user!.companyId) {
     return res.status(403).json({ error: "Forbidden" });
   }
+  const body = req.body as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  for (const field of FIELD_OPTION_EDITABLE_FIELDS) {
+    if (field in body) patch[field] = body[field];
+  }
   const { data, error } = await supabaseAdmin
     .from("field_option_catalog")
-    .update({ ...req.body, updated_at: new Date().toISOString() })
+    .update({ ...patch, updated_at: new Date().toISOString() })
     .eq("id", req.params.id)
     .select()
     .single();

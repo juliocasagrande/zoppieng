@@ -130,14 +130,38 @@ companiesRouter.post("/", requireRole("zoppi_admin"), async (req, res) => {
   res.status(201).json(withLogoUrl(data));
 });
 
+const COMPANY_EDITABLE_FIELDS = [
+  "legal_name",
+  "trade_name",
+  "cnpj",
+  "kind",
+  "address_street",
+  "address_number",
+  "address_complement",
+  "address_district",
+  "address_city",
+  "address_state",
+  "address_zip",
+  "contact_name",
+  "contact_role",
+  "contact_phone",
+  "contact_email",
+  "logo_path",
+] as const;
+
 companiesRouter.patch("/:id", requireRole("zoppi_admin", "company_admin"), async (req, res) => {
   if (req.user!.role === "company_admin" && req.user!.companyId !== req.params.id) {
     return res.status(403).json({ error: "Forbidden" });
   }
-  const body = { ...req.body };
+  const reqBody = req.body as Record<string, unknown>;
+  const body: Record<string, unknown> = {};
+  for (const field of COMPANY_EDITABLE_FIELDS) {
+    if (field in reqBody) body[field] = reqBody[field];
+  }
+  if (req.user!.role === "company_admin") delete body.kind;
   if (body.cnpj !== undefined) {
     body.cnpj = normalizeCnpj(String(body.cnpj));
-    if (!isValidCnpj(body.cnpj)) return res.status(400).json({ error: "CNPJ inválido." });
+    if (!isValidCnpj(body.cnpj as string)) return res.status(400).json({ error: "CNPJ inválido." });
   }
   const { data, error } = await supabaseAdmin
     .from("companies")
