@@ -7,6 +7,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // Registration is handled by src/pwa/registerServiceWorker.ts so we can
+      // actively check for deployments while an installed PWA remains open.
+      injectRegister: false,
       includeAssets: ["icons/icon-192.png", "icons/icon-512.png"],
       manifest: {
         name: "Zoppi",
@@ -22,6 +25,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Do not leave a new deployment waiting for every old tab to close.
+        // The client reloads as soon as this worker takes control.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         // The field flow (/f/:token) is the surface that must work offline:
         // cache its shell + API GET responses, and queue writes via IndexedDB
         // (see src/field/offline) rather than relying on Workbox background sync

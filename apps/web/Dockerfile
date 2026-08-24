@@ -27,8 +27,9 @@ FROM node:22-slim
 WORKDIR /app
 RUN npm install -g serve@14
 COPY --from=build /app/apps/web/dist ./dist
+COPY apps/web/serve.json ./serve.json
 
 # vite-plugin-pwa generates a service worker (sw.js) that must be served
-# fresh each time, not cached — `serve -s` alone doesn't set that, but the
-# browser always revalidates a same-origin sw.js by spec, so this is fine.
+# fresh each time. serve.json prevents the app shell and worker from being
+# held by an HTTP cache while keeping content-hashed assets immutable.
 CMD ["sh", "-c", "serve -s dist -l ${PORT:-3000}"]
