@@ -25,12 +25,11 @@ create policy report_attachments_rw on report_attachments for all
   using (is_zoppi_staff() or report_id in (select id from reports where company_id = current_user_company_id()))
   with check (is_zoppi_staff() or report_id in (select id from reports where company_id = current_user_company_id()));
 
--- Signatures are low-sensitivity branding-like images (same as company
--- logos), so the bucket is public like company-logos; report attachments can
--- contain sensitive certificates/documents, so that bucket stays private and
--- is served through signed URLs like report-photos.
+-- Both buckets are private. A handwritten signature is personal data and must
+-- only be served through short-lived signed URLs; report attachments can also
+-- contain sensitive certificates/documents.
 insert into storage.buckets (id, name, public)
 values
-  ('engineer-signatures', 'engineer-signatures', true),
+  ('engineer-signatures', 'engineer-signatures', false),
   ('report-attachments', 'report-attachments', false)
 on conflict (id) do nothing;

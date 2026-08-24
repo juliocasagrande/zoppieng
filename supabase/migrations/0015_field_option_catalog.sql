@@ -31,14 +31,15 @@ create policy field_option_catalog_write on field_option_catalog for all
   with check (is_zoppi_staff() or (scope = 'company_custom' and company_id = current_user_company_id()));
 
 insert into storage.buckets (id, name, public)
-values ('field-option-images', 'field-option-images', true)
+values ('field-option-images', 'field-option-images', false)
 on conflict (id) do nothing;
 
 -- device_type becomes free text so companies can add device categories
 -- beyond the fixed NBR 16325-1 A/A1/B/C/D classification — each of those
 -- five stays available as a Zoppi-standard catalog entry, seeded below.
 alter table anchor_points alter column device_type type text using device_type::text;
-drop type anchor_device_type;
+-- Keep the now-unused enum type for a non-destructive forward migration. It
+-- can be removed in a separately reviewed cleanup once no dependency remains.
 
 -- value = label for every seeded field (not just device_type): the field
 -- wizard stores whichever descriptive text the technician picked directly on

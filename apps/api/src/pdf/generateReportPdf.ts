@@ -78,9 +78,12 @@ export async function buildReportPdfData(reportId: string): Promise<ReportPdfDat
     }),
   );
 
-  const engineerSignatureUrl = engineerUser?.signature_path
-    ? supabaseAdmin.storage.from("engineer-signatures").getPublicUrl(engineerUser.signature_path).data.publicUrl
-    : null;
+  let engineerSignatureUrl: string | null = null;
+  if (engineerUser?.signature_path) {
+    const { data, error } = await supabaseAdmin.storage.from("engineer-signatures").createSignedUrl(engineerUser.signature_path, 15 * 60);
+    if (error) console.warn("Unable to create signed PDF signature URL", error.message);
+    else engineerSignatureUrl = data.signedUrl;
+  }
 
   const attachmentsWithUrls = await Promise.all(
     (attachments ?? []).map(async (a) => ({ ...a, url: await signedUrl("report-attachments", a.storage_path) })),

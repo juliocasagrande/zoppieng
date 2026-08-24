@@ -7,8 +7,14 @@ export const usersRouter = Router();
 
 usersRouter.use(requireAuth);
 
-function signatureUrl(path: string | null): string | null {
-  return path ? supabaseAdmin.storage.from("engineer-signatures").getPublicUrl(path).data.publicUrl : null;
+async function signatureUrl(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data, error } = await supabaseAdmin.storage.from("engineer-signatures").createSignedUrl(path, 60 * 60);
+  if (error) {
+    console.warn("Unable to create signed profile signature URL", error.message);
+    return null;
+  }
+  return data.signedUrl;
 }
 
 // Returns the DB row shape (snake_case, matching the shared AppUser type) —
@@ -16,13 +22,36 @@ function signatureUrl(path: string | null): string | null {
 usersRouter.get("/me", async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("id, company_id, role, full_name, email, phone, crea_number, active, signature_path")
+    .select("id, company_id, role, full_name, email, phone, crea_number, active")
     .eq("id", req.user!.id)
-    .single();
-  if (error || !data) return res.status(404).json({ error: "Profile not found" });
+    .maybeSingle();
+  if (error) {
+    console.error("Unable to load user profile", error);
+    return res.status(503).json({ error: "Unable to load user profile" });
+  }
+  if (!data) return res.status(404).json({ error: "Profile not found" });
+
+  // `signature_path` was introduced after the core profile. Loading it
+  // separately keeps login working while an older production database is
+  // waiting for migration 0014 to be applied.
+  const signatureResult = await supabaseAdmin
+    .from("users")
+    .select("signature_path")
+    .eq("id", req.user!.id)
+    .maybeSingle();
+  const signaturePath = signatureResult.error ? null : signatureResult.data?.signature_path ?? null;
+  if (signatureResult.error) {
+    console.warn("Unable to load optional profile signature", signatureResult.error.message);
+  }
+
   const isZoppiStaff = data.role === "zoppi_admin" || data.role === "zoppi_engineer";
   const canCreateReports = isZoppiStaff || (data.company_id ? await hasActiveModuleAccessBySlug(data.company_id, "ancoragem") : false);
-  res.json({ ...data, can_create_reports: canCreateReports, signature_url: signatureUrl(data.signature_path) });
+  res.json({
+    ...data,
+    signature_path: signaturePath,
+    can_create_reports: canCreateReports,
+    signature_url: await signatureUrl(signaturePath),
+  });
 });
 
 // Returns a signed upload URL for the caller's own signature image (white

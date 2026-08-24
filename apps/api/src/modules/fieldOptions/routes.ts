@@ -10,9 +10,14 @@ import { requireAuth, requireRole } from "../../middleware/auth.js";
 export const fieldOptionsRouter = Router();
 fieldOptionsRouter.use(requireAuth);
 
-function withImageUrl<T extends { image_path: string | null }>(item: T): T & { image_url: string | null } {
-  const image_url = item.image_path ? supabaseAdmin.storage.from("field-option-images").getPublicUrl(item.image_path).data.publicUrl : null;
-  return { ...item, image_url };
+async function withImageUrl<T extends { image_path: string | null }>(item: T): Promise<T & { image_url: string | null }> {
+  if (!item.image_path) return { ...item, image_url: null };
+  const { data, error } = await supabaseAdmin.storage.from("field-option-images").createSignedUrl(item.image_path, 60 * 60);
+  if (error) {
+    console.warn("Unable to create signed field-option image URL", error.message);
+    return { ...item, image_url: null };
+  }
+  return { ...item, image_url: data.signedUrl };
 }
 
 // Combined catalog: Zoppi standard items + this company's custom items,
@@ -29,7 +34,7 @@ fieldOptionsRouter.get("/", async (req, res) => {
 
   const { data, error } = await query.order("sort_order").order("label");
   if (error) return res.status(500).json({ error: error.message });
-  res.json((data ?? []).map(withImageUrl));
+  res.json(await Promise.all((data ?? []).map(withImageUrl)));
 });
 
 fieldOptionsRouter.post("/", requireRole("zoppi_admin", "company_admin"), async (req, res) => {
@@ -52,7 +57,7 @@ fieldOptionsRouter.post("/", requireRole("zoppi_admin", "company_admin"), async 
     .select()
     .single();
   if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(withImageUrl(data));
+  res.status(201).json(await withImageUrl(data));
 });
 
 fieldOptionsRouter.post("/:id/image-upload-url", requireRole("zoppi_admin", "company_admin"), async (req, res) => {
@@ -88,7 +93,7 @@ fieldOptionsRouter.patch("/:id", requireRole("zoppi_admin", "company_admin"), as
     .select()
     .single();
   if (error) return res.status(400).json({ error: error.message });
-  res.json(withImageUrl(data));
+  res.json(await withImageUrl(data));
 });
 
 fieldOptionsRouter.delete("/:id", requireRole("zoppi_admin", "company_admin"), async (req, res) => {

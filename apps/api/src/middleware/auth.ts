@@ -49,14 +49,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   let profile: { id: string; company_id: string | null; role: UserRole; full_name: string; email: string; active: boolean } | null = null;
   try {
     profile = await withRetry(async () => {
-      const r = await supabaseAdmin.from("users").select("id, company_id, role, full_name, email, active").eq("id", authData!.user.id).single();
-      if (r.error || !r.data) throw r.error ?? new Error("No profile");
+      const r = await supabaseAdmin.from("users").select("id, company_id, role, full_name, email, active").eq("id", authData!.user.id).maybeSingle();
+      if (r.error) throw r.error;
       return r.data;
     });
-  } catch {
-    return res.status(403).json({ error: "User has no active platform profile" });
+  } catch (error) {
+    console.error("Unable to load platform profile", error);
+    return res.status(503).json({ error: "Unable to load platform profile" });
   }
-  if (!profile.active) {
+  if (!profile || !profile.active) {
     return res.status(403).json({ error: "User has no active platform profile" });
   }
 

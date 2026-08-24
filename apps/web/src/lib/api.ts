@@ -2,6 +2,16 @@ import { supabase } from "./supabaseClient.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
 
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 let refreshAccessTokenPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken() {
@@ -51,7 +61,8 @@ async function authedFetch(path: string, options: RequestInit = {}) {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(body.error ? JSON.stringify(body.error) : res.statusText);
+    const message = typeof body.error === "string" ? body.error : body.error ? JSON.stringify(body.error) : res.statusText;
+    throw new ApiError(res.status, message);
   }
   if (res.status === 204) return null;
   return res.json();

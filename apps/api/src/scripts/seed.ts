@@ -6,7 +6,8 @@ import { supabaseAdmin } from "../lib/supabase.js";
 // Run with: npm run seed --workspace apps/api
 // Requires SUPABASE_SERVICE_ROLE_KEY set (never expose this key client-side).
 async function upsertAuthUser(email: string, password: string) {
-  const { data: existing } = await supabaseAdmin.auth.admin.listUsers();
+  const { data: existing, error: listError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+  if (listError) throw listError;
   const found = existing.users.find((u) => u.email === email);
   if (found) return found;
   const { data, error } = await supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -16,7 +17,7 @@ async function upsertAuthUser(email: string, password: string) {
 
 async function main() {
   const zoppiAdminAuth = await upsertAuthUser("admin@zoppi.com.br", "ZoppiAdmin123!");
-  await supabaseAdmin.from("users").upsert(
+  const { error: adminProfileError } = await supabaseAdmin.from("users").upsert(
     {
       id: zoppiAdminAuth.id,
       role: "zoppi_admin",
@@ -25,9 +26,10 @@ async function main() {
     },
     { onConflict: "id" },
   );
+  if (adminProfileError) throw adminProfileError;
 
   const engineerAuth = await upsertAuthUser("engenheiro@zoppi.com.br", "ZoppiEng123!");
-  await supabaseAdmin.from("users").upsert(
+  const { error: engineerProfileError } = await supabaseAdmin.from("users").upsert(
     {
       id: engineerAuth.id,
       role: "zoppi_engineer",
@@ -37,8 +39,9 @@ async function main() {
     },
     { onConflict: "id" },
   );
+  if (engineerProfileError) throw engineerProfileError;
 
-  const { data: company } = await supabaseAdmin
+  const { data: company, error: companyError } = await supabaseAdmin
     .from("companies")
     .upsert(
       {
@@ -52,24 +55,27 @@ async function main() {
     )
     .select()
     .single();
+  if (companyError || !company) throw companyError ?? new Error("Demo company was not created");
 
   const companyAdminAuth = await upsertAuthUser("empresa@demo.com.br", "EmpresaDemo123!");
-  await supabaseAdmin.from("users").upsert(
+  const { error: companyProfileError } = await supabaseAdmin.from("users").upsert(
     {
       id: companyAdminAuth.id,
       role: "company_admin",
       full_name: "Admin Empresa Demo",
       email: "empresa@demo.com.br",
-      company_id: company!.id,
+      company_id: company.id,
     },
     { onConflict: "id" },
   );
+  if (companyProfileError) throw companyProfileError;
 
-  const { data: moduleRow } = await supabaseAdmin.from("modules").select("id").eq("slug", "ancoragem").single();
-  await supabaseAdmin.from("module_subscriptions").upsert(
+  const { data: moduleRow, error: moduleError } = await supabaseAdmin.from("modules").select("id").eq("slug", "ancoragem").single();
+  if (moduleError || !moduleRow) throw moduleError ?? new Error("Ancoragem module was not found");
+  const { error: subscriptionError } = await supabaseAdmin.from("module_subscriptions").upsert(
     {
-      company_id: company!.id,
-      module_id: moduleRow!.id,
+      company_id: company.id,
+      module_id: moduleRow.id,
       status: "active",
       plan_code: "standard",
       monthly_amount_cents: 29900,
@@ -77,6 +83,7 @@ async function main() {
     },
     { onConflict: "company_id,module_id" },
   );
+  if (subscriptionError) throw subscriptionError;
 
   console.log("Seed complete.");
   console.log("Zoppi Admin: admin@zoppi.com.br / ZoppiAdmin123!");

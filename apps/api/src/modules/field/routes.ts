@@ -7,9 +7,17 @@ import { getNotificationProvider } from "../../providers/notification/index.js";
 
 export const fieldRouter = Router();
 
-function withImageUrl<T extends { image_path: string | null }>(bucket: string, item: T): T & { image_url: string | null } {
-  const image_url = item.image_path ? supabaseAdmin.storage.from(bucket).getPublicUrl(item.image_path).data.publicUrl : null;
-  return { ...item, image_url };
+async function withImageUrl<T extends { image_path: string | null }>(bucket: string, item: T): Promise<T & { image_url: string | null }> {
+  if (!item.image_path) return { ...item, image_url: null };
+  if (bucket === "field-option-images") {
+    const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUrl(item.image_path, 6 * 60 * 60);
+    if (error) {
+      console.warn("Unable to create signed field-option image URL", error.message);
+      return { ...item, image_url: null };
+    }
+    return { ...item, image_url: data.signedUrl };
+  }
+  return { ...item, image_url: supabaseAdmin.storage.from(bucket).getPublicUrl(item.image_path).data.publicUrl };
 }
 
 const FIELD_OPTION_KEYS = ["device_type", "system_type", "support_structure", "environment_condition"] as const;
@@ -38,13 +46,18 @@ fieldRouter.get("/:token", requireFieldToken, async (req, res) => {
   ]);
 
   const fieldOptions = Object.fromEntries(
-    FIELD_OPTION_KEYS.map((key) => [key, (fieldOptionRows ?? []).filter((o) => o.field_key === key).map((o) => withImageUrl("field-option-images", o))]),
+    await Promise.all(
+      FIELD_OPTION_KEYS.map(async (key) => [
+        key,
+        await Promise.all((fieldOptionRows ?? []).filter((o) => o.field_key === key).map((o) => withImageUrl("field-option-images", o))),
+      ]),
+    ),
   );
 
   res.json({
     report,
     anchorPoints,
-    accessories: (accessories ?? []).map((a) => withImageUrl("accessory-images", a)),
+    accessories: await Promise.all((accessories ?? []).map((a) => withImageUrl("accessory-images", a))),
     tips,
     fieldOptions,
   });
