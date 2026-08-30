@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { getSignatureProvider } from "../../providers/signature/index.js";
 import { generateReportPdf } from "../../pdf/generateReportPdf.js";
 import { getNotificationProvider } from "../../providers/notification/index.js";
+import { env } from "../../env.js";
 
 export const reviewRouter = Router();
 reviewRouter.use(requireAuth, requireRole("zoppi_admin", "zoppi_engineer"));
@@ -114,7 +115,19 @@ reviewRouter.post("/:id/approve", async (req, res) => {
 
   const { data: engineer } = await supabaseAdmin.from("users").select("full_name, crea_number").eq("id", req.user!.id).single();
 
-  await supabaseAdmin.from("reports").update({ assigned_engineer_id: req.user!.id, issued_at: new Date().toISOString() }).eq("id", reportId);
+  // Validity counts from the actual signing date, not report creation — a
+  // report can sit in draft/review for a while first (see
+  // reports/routes.ts POST /, which leaves valid_until unset for that reason).
+  const { data: config } = await supabaseAdmin.from("app_config").select("value").eq("key", "report_default_validity_months").single();
+  const validityMonths = (config?.value as number) ?? env.reportDefaultValidityMonths;
+  const issuedAt = new Date();
+  const validUntil = new Date(issuedAt);
+  validUntil.setMonth(validUntil.getMonth() + validityMonths);
+
+  await supabaseAdmin
+    .from("reports")
+    .update({ assigned_engineer_id: req.user!.id, issued_at: issuedAt.toISOString(), valid_until: validUntil.toISOString() })
+    .eq("id", reportId);
 
   const pdfBuffer = await generateReportPdf(reportId);
   const signatureProvider = getSignatureProvider();

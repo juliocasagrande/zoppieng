@@ -1,5 +1,6 @@
 import { useAuth } from "../AuthContext.js";
 import { USER_ROLE_LABELS } from "@zoppi/shared";
+import { AlertBell } from "./AlertBell.js";
 
 export function Header() {
   const { profile, signOut } = useAuth();
@@ -30,19 +31,22 @@ export function Header() {
         </div>
       </div>
       {profile && (
-        <div className="zp-header-profile" style={{ display: "flex", alignItems: "center", gap: 16, fontFamily: "var(--font-body)" }}>
-          <div className="zp-header-profile-text" style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 600 }}>{profile.full_name}</div>
-            <div className="zp-eyebrow" style={{ color: "rgba(255,255,255,0.55)" }}>
-              {USER_ROLE_LABELS[profile.role]}
+        <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+          <AlertBell />
+          <div className="zp-header-profile" style={{ display: "flex", alignItems: "center", gap: 16, fontFamily: "var(--font-body)" }}>
+            <div className="zp-header-profile-text" style={{ textAlign: "right" }}>
+              <div style={{ fontWeight: 600 }}>{profile.full_name}</div>
+              <div className="zp-eyebrow" style={{ color: "rgba(255,255,255,0.55)" }}>
+                {USER_ROLE_LABELS[profile.role]}
+              </div>
             </div>
+            <button
+              onClick={() => signOut()}
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: "var(--radius)", padding: "8px 14px", cursor: "pointer" }}
+            >
+              Sair
+            </button>
           </div>
-          <button
-            onClick={() => signOut()}
-            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: "var(--radius)", padding: "8px 14px", cursor: "pointer" }}
-          >
-            Sair
-          </button>
         </div>
       )}
     </header>

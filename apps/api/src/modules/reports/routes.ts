@@ -123,10 +123,10 @@ reportsRouter.post("/", requireRole("zoppi_admin", "zoppi_engineer", "company_ad
     return res.status(402).json({ error: "Assinatura do módulo Ancoragem inativa. Regularize para criar novos laudos." });
   }
 
-  const { data: config } = await supabaseAdmin.from("app_config").select("value").eq("key", "report_default_validity_months").single();
-  const validityMonths = (config?.value as number) ?? env.reportDefaultValidityMonths;
-  const validUntil = new Date();
-  validUntil.setMonth(validUntil.getMonth() + validityMonths);
+  // valid_until is intentionally left unset here — it's computed from
+  // issued_at (the actual signing date) when the report is approved, not
+  // from creation date, since a report can sit in draft/review for a while
+  // first (see review/routes.ts POST /:id/approve).
 
   // report_number is only a starting guess (see reportNumber.ts) — concurrent
   // creations can race for the same value, so retry with the next candidate
@@ -151,7 +151,6 @@ reportsRouter.post("/", requireRole("zoppi_admin", "zoppi_engineer", "company_ad
               survey_date: input.surveyDate ?? null,
               status: "draft",
               report_number: reportNumber,
-              valid_until: validUntil.toISOString(),
               created_by: req.user!.id,
             })
             .select()

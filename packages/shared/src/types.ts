@@ -332,6 +332,139 @@ export interface Signature {
   signed_at: string;
 }
 
+// "Cadastro" registry: master data a subscriber company keeps about its own
+// business (clients, suppliers, subcontractors, engineers, equipment,
+// vehicles) — distinct from `Company` (platform tenants) and `ReportParty`
+// (a per-report snapshot). See supabase/migrations/0016_registry.sql.
+export interface RegistryClient {
+  id: string;
+  company_id: string;
+  legal_name: string;
+  trade_name: string | null;
+  cnpj: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_district: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_zip: string | null;
+  contact_name: string | null;
+  contact_role: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
+export type SupplierCategory = "material" | "epi" | "calibracao" | "outro";
+
+export interface RegistrySupplier {
+  id: string;
+  company_id: string;
+  legal_name: string;
+  trade_name: string | null;
+  cnpj: string | null;
+  category: SupplierCategory;
+  address: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
+export type ServiceProviderDocumentType = "cnpj" | "cpf";
+
+export interface RegistryServiceProvider {
+  id: string;
+  company_id: string;
+  name: string;
+  document_type: ServiceProviderDocumentType;
+  document_number: string | null;
+  service_type: string | null;
+  address: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
+// Engineers/equipment/vehicles are the one part of the Cadastro registry
+// with a *dual* owner: either a subscriber company (`company_id`, as before)
+// or a zoppi_engineer's own personal record (`owner_user_id`) — a Zoppi
+// engineer isn't a member of any subscriber company but serves several, so
+// their CREA data/gear/vehicle belong to them, not to one company. Exactly
+// one of the two is ever set — see supabase/migrations/0017_registry_ownership.sql.
+export interface RegistryEngineer {
+  id: string;
+  company_id: string | null;
+  owner_user_id: string | null;
+  user_id: string | null;
+  full_name: string;
+  crea_number: string | null;
+  crea_state: string | null;
+  email: string | null;
+  phone: string | null;
+  specialty: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
+export type EngineerDocumentType = "crea_carteirinha" | "art_disponibilidade" | "certificado_nr35" | "outro";
+
+export interface RegistryEngineerDocument {
+  id: string;
+  engineer_id: string;
+  company_id: string | null;
+  owner_user_id: string | null;
+  doc_type: EngineerDocumentType;
+  label: string;
+  storage_path: string | null;
+  storage_url?: string | null;
+  issued_at: string | null;
+  expires_at: string | null;
+  notes: string | null;
+}
+
+export type EquipmentCategory = "dinamometro" | "trena" | "torquimetro" | "epi" | "outro";
+
+export interface RegistryEquipment {
+  id: string;
+  company_id: string | null;
+  owner_user_id: string | null;
+  name: string;
+  category: EquipmentCategory;
+  manufacturer: string | null;
+  model: string | null;
+  serial_number: string | null;
+  capacity_kgf: number | null;
+  calibration_certificate_path: string | null;
+  calibration_certificate_url?: string | null;
+  calibration_issued_at: string | null;
+  calibration_expires_at: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
+export type VehicleKind = "carro" | "moto" | "van" | "caminhonete" | "outro";
+
+export interface RegistryVehicle {
+  id: string;
+  company_id: string | null;
+  owner_user_id: string | null;
+  plate: string | null;
+  brand: string | null;
+  model: string | null;
+  year: number | null;
+  kind: VehicleKind;
+  document_path: string | null;
+  document_url?: string | null;
+  insurance_expires_at: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
 export interface BestPracticeContent {
   id: string;
   module_id: string | null;

@@ -108,6 +108,41 @@ export const ATTACHMENT_CATEGORY_LABELS: Record<string, string> = {
   other: "Outros documentos",
 };
 
+export const SUPPLIER_CATEGORY_LABELS: Record<string, string> = {
+  material: "Material",
+  epi: "EPI",
+  calibracao: "Calibração",
+  outro: "Outro",
+};
+
+export const SERVICE_PROVIDER_DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  cnpj: "Pessoa jurídica (CNPJ)",
+  cpf: "Autônomo (CPF)",
+};
+
+export const ENGINEER_DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  crea_carteirinha: "Carteirinha CREA",
+  art_disponibilidade: "ART / disponibilidade",
+  certificado_nr35: "Certificado NR-35",
+  outro: "Outro",
+};
+
+export const EQUIPMENT_CATEGORY_LABELS: Record<string, string> = {
+  dinamometro: "Dinamômetro",
+  trena: "Trena",
+  torquimetro: "Torquímetro",
+  epi: "EPI",
+  outro: "Outro",
+};
+
+export const VEHICLE_KIND_LABELS: Record<string, string> = {
+  carro: "Carro",
+  moto: "Moto",
+  van: "Van",
+  caminhonete: "Caminhonete",
+  outro: "Outro",
+};
+
 export const USER_ROLE_LABELS: Record<string, string> = {
   zoppi_admin: "Zoppi Admin",
   zoppi_engineer: "Zoppi Engenheiro",

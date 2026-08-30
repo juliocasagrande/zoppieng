@@ -174,6 +174,97 @@ export const fieldOptionCatalogItemSchema = z.object({
 });
 export type FieldOptionCatalogItemInput = z.infer<typeof fieldOptionCatalogItemSchema>;
 
+// "Cadastro" registry schemas — field names match the DB columns directly
+// (snake_case) since these are simple owned records edited in place, the
+// same convention CompanyAdmin.tsx uses for `companies`.
+export const registryClientSchema = z.object({
+  legal_name: z.string().min(1),
+  trade_name: z.string().nullable().optional(),
+  cnpj: z.string().nullable().optional(),
+  address_street: z.string().nullable().optional(),
+  address_number: z.string().nullable().optional(),
+  address_complement: z.string().nullable().optional(),
+  address_district: z.string().nullable().optional(),
+  address_city: z.string().nullable().optional(),
+  address_state: z.string().nullable().optional(),
+  address_zip: z.string().nullable().optional(),
+  contact_name: z.string().nullable().optional(),
+  contact_role: z.string().nullable().optional(),
+  contact_phone: z.string().nullable().optional(),
+  contact_email: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type RegistryClientInput = z.infer<typeof registryClientSchema>;
+
+export const registrySupplierSchema = z.object({
+  legal_name: z.string().min(1),
+  trade_name: z.string().nullable().optional(),
+  cnpj: z.string().nullable().optional(),
+  category: z.enum(["material", "epi", "calibracao", "outro"]).default("outro"),
+  address: z.string().nullable().optional(),
+  contact_name: z.string().nullable().optional(),
+  contact_phone: z.string().nullable().optional(),
+  contact_email: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type RegistrySupplierInput = z.infer<typeof registrySupplierSchema>;
+
+export const registryServiceProviderSchema = z.object({
+  name: z.string().min(1),
+  document_type: z.enum(["cnpj", "cpf"]).default("cnpj"),
+  document_number: z.string().nullable().optional(),
+  service_type: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  contact_phone: z.string().nullable().optional(),
+  contact_email: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type RegistryServiceProviderInput = z.infer<typeof registryServiceProviderSchema>;
+
+export const registryEngineerSchema = z.object({
+  full_name: z.string().min(1),
+  crea_number: z.string().nullable().optional(),
+  crea_state: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  specialty: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type RegistryEngineerInput = z.infer<typeof registryEngineerSchema>;
+
+export const registryEngineerDocumentSchema = z.object({
+  doc_type: z.enum(["crea_carteirinha", "art_disponibilidade", "certificado_nr35", "outro"]).default("outro"),
+  label: z.string().min(1),
+  issued_at: z.string().nullable().optional(),
+  expires_at: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type RegistryEngineerDocumentInput = z.infer<typeof registryEngineerDocumentSchema>;
+
+export const registryEquipmentSchema = z.object({
+  name: z.string().min(1),
+  category: z.enum(["dinamometro", "trena", "torquimetro", "epi", "outro"]).default("outro"),
+  manufacturer: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  serial_number: z.string().nullable().optional(),
+  capacity_kgf: z.number().nonnegative().nullable().optional(),
+  calibration_issued_at: z.string().nullable().optional(),
+  calibration_expires_at: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type RegistryEquipmentInput = z.infer<typeof registryEquipmentSchema>;
+
+export const registryVehicleSchema = z.object({
+  plate: z.string().min(1),
+  brand: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  year: z.number().int().nullable().optional(),
+  kind: z.enum(["carro", "moto", "van", "caminhonete", "outro"]).default("outro"),
+  insurance_expires_at: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type RegistryVehicleInput = z.infer<typeof registryVehicleSchema>;
+
 export const accessoryCatalogItemSchema = z.object({
   name: z.string().min(1),
   category: z.string().min(1),

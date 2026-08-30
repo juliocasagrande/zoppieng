@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatCnpj, REPORT_NAME_PRESETS, type CnpjLookupResult, type Company } from "@zoppi/shared";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../AuthContext.js";
@@ -71,9 +71,13 @@ const gridStyle: React.CSSProperties = {
 export function ReportWizardPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const presetFromQuery = searchParams.get("preset");
+  const initialNamePreset =
+    presetFromQuery && (REPORT_NAME_PRESETS as readonly string[]).includes(presetFromQuery) ? presetFromQuery : REPORT_NAME_PRESETS[0];
   const [stepIndex, setStepIndex] = useState(0);
   const [maxReached, setMaxReached] = useState(0);
-  const [namePreset, setNamePreset] = useState(REPORT_NAME_PRESETS[0]);
+  const [namePreset, setNamePreset] = useState(initialNamePreset);
   const [customName, setCustomName] = useState("");
   const [description, setDescription] = useState("");
   const [companyId, setCompanyId] = useState(profile?.company_id ?? "");
@@ -148,6 +152,14 @@ export function ReportWizardPage() {
       return;
     }
     setError(null);
+    // Leaving "contratante" for "local": the inspection site is usually the
+    // contratante's own facility, so pre-fill from it instead of asking the
+    // same address twice — only when the user hasn't touched the site
+    // fields yet (a saved-site chip or manual typing always wins).
+    if (STEPS[stepIndex].id === "contratante" && !siteIdentification && !siteAddress) {
+      setSiteIdentification(contratante.legalName);
+      setSiteAddress(contratante.address);
+    }
     const next = Math.min(stepIndex + 1, STEPS.length - 1);
     setStepIndex(next);
     setMaxReached((m) => Math.max(m, next));

@@ -12,6 +12,7 @@ import { reviewRouter } from "./modules/review/routes.js";
 import { bestPracticesRouter } from "./modules/bestPractices/routes.js";
 import { verifyRouter } from "./modules/verify/routes.js";
 import { registrationRouter } from "./modules/registration/routes.js";
+import { registryRouter } from "./modules/registry/routes.js";
 
 export function createApp() {
   const app = express();
@@ -32,6 +33,7 @@ export function createApp() {
   app.use("/best-practices", bestPracticesRouter);
   app.use("/verify", verifyRouter);
   app.use("/register", registrationRouter);
+  app.use("/registry", registryRouter);
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(err);

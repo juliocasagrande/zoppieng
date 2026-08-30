@@ -7,6 +7,16 @@ import { Button } from "../../shared/components/Button.js";
 import { FormField, inputStyle } from "../../shared/components/FormField.js";
 import { TechTag } from "../../shared/components/TechTag.js";
 import { Skeleton } from "../../shared/components/Skeleton.js";
+import { SearchInput } from "../../shared/components/SearchInput.js";
+
+const CATEGORY_OPTIONS = [
+  { value: "chumbador_quimico", label: "Chumbador químico" },
+  { value: "chumbador_mecanico", label: "Chumbador mecânico" },
+  { value: "olhal", label: "Olhal" },
+  { value: "barra_roscada", label: "Barra roscada" },
+  { value: "dinamometro", label: "Dinamômetro" },
+  { value: "outro", label: "Outro" },
+];
 
 export function AccessoryCatalogPage() {
   const { profile } = useAuth();
@@ -17,6 +27,8 @@ export function AccessoryCatalogPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("outro");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   function reload() {
     api
@@ -25,6 +37,13 @@ export function AccessoryCatalogPage() {
       .finally(() => setLoading(false));
   }
   useEffect(reload, []);
+
+  const searchTerm = search.trim().toLowerCase();
+  const filteredItems = items.filter((item) => {
+    if (categoryFilter && item.category !== categoryFilter) return false;
+    if (searchTerm && !item.name.toLowerCase().includes(searchTerm)) return false;
+    return true;
+  });
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +73,18 @@ export function AccessoryCatalogPage() {
         {canEdit && <Button onClick={() => setShowForm((v) => !v)}>{showForm ? "Cancelar" : "Novo item customizado"}</Button>}
       </div>
 
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar acessório..." />
+        <select style={{ ...inputStyle, flex: "0 1 200px" }} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <option value="">Categoria — todas</option>
+          {CATEGORY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {showForm && (
         <Card style={{ marginBottom: 24 }}>
           <form onSubmit={handleCreate}>
@@ -62,12 +93,11 @@ export function AccessoryCatalogPage() {
             </FormField>
             <FormField label="Categoria">
               <select style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="chumbador_quimico">Chumbador químico</option>
-                <option value="chumbador_mecanico">Chumbador mecânico</option>
-                <option value="olhal">Olhal</option>
-                <option value="barra_roscada">Barra roscada</option>
-                <option value="dinamometro">Dinamômetro</option>
-                <option value="outro">Outro</option>
+                {CATEGORY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </FormField>
             <Button type="submit">Salvar</Button>
@@ -78,7 +108,7 @@ export function AccessoryCatalogPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
         {loading
           ? Array.from({ length: 6 }).map((_, i) => <AccessoryCardSkeleton key={i} />)
-          : items.map((item) => (
+          : filteredItems.map((item) => (
               <AccessoryCard
                 key={item.id}
                 item={item}
@@ -88,6 +118,9 @@ export function AccessoryCatalogPage() {
               />
             ))}
       </div>
+      {!loading && items.length > 0 && filteredItems.length === 0 && (
+        <p style={{ color: "var(--color-gray)" }}>Nenhum acessório encontrado para esse filtro.</p>
+      )}
     </div>
   );
 }

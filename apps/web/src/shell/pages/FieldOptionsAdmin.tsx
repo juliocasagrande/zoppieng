@@ -7,6 +7,7 @@ import { Button } from "../../shared/components/Button.js";
 import { FormField, inputStyle } from "../../shared/components/FormField.js";
 import { TechTag } from "../../shared/components/TechTag.js";
 import { Skeleton } from "../../shared/components/Skeleton.js";
+import { SearchInput } from "../../shared/components/SearchInput.js";
 
 const TABS: { key: FieldOptionKey; title: string; hint: string }[] = [
   { key: "device_type", title: "Tipo de dispositivo", hint: "Classificação do ponto de ancoragem mostrada em cada ficha de campo (padrão NBR 16325-1)." },
@@ -65,6 +66,8 @@ function OptionCatalogManager({ fieldKey, hint }: { fieldKey: FieldOptionKey; hi
   const [showForm, setShowForm] = useState(false);
   const [label, setLabel] = useState("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [scopeFilter, setScopeFilter] = useState("");
 
   function reload() {
     setLoading(true);
@@ -102,6 +105,13 @@ function OptionCatalogManager({ fieldKey, hint }: { fieldKey: FieldOptionKey; hi
     reload();
   }
 
+  const searchTerm = search.trim().toLowerCase();
+  const filteredItems = items.filter((item) => {
+    if (scopeFilter && item.scope !== scopeFilter) return false;
+    if (searchTerm && !item.label.toLowerCase().includes(searchTerm)) return false;
+    return true;
+  });
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
@@ -109,6 +119,15 @@ function OptionCatalogManager({ fieldKey, hint }: { fieldKey: FieldOptionKey; hi
           {hint}
         </p>
         {canEdit && <Button onClick={() => setShowForm((v) => !v)}>{showForm ? "Cancelar" : "Nova opção"}</Button>}
+      </div>
+
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar opção..." />
+        <select style={{ ...inputStyle, flex: "0 1 200px" }} value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)}>
+          <option value="">Origem — todas</option>
+          <option value="zoppi_standard">Padrão Zoppi</option>
+          <option value="company_custom">Customizado</option>
+        </select>
       </div>
 
       {showForm && (
@@ -125,7 +144,7 @@ function OptionCatalogManager({ fieldKey, hint }: { fieldKey: FieldOptionKey; hi
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
         {loading
           ? Array.from({ length: 4 }).map((_, i) => <OptionCardSkeleton key={i} />)
-          : items.map((item) => (
+          : filteredItems.map((item) => (
               <OptionCard
                 key={item.id}
                 item={item}
@@ -136,6 +155,9 @@ function OptionCatalogManager({ fieldKey, hint }: { fieldKey: FieldOptionKey; hi
               />
             ))}
       </div>
+      {!loading && items.length > 0 && filteredItems.length === 0 && (
+        <p style={{ color: "var(--color-gray)" }}>Nenhuma opção encontrada para esse filtro.</p>
+      )}
     </div>
   );
 }

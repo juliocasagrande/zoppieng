@@ -7,12 +7,29 @@ import { Card } from "../../shared/components/Card.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.js";
 import { Button } from "../../shared/components/Button.js";
 import { Skeleton } from "../../shared/components/Skeleton.js";
+import { SearchInput } from "../../shared/components/SearchInput.js";
+import { inputStyle } from "../../shared/components/FormField.js";
 import { useAuth } from "../AuthContext.js";
+
+const STATUS_OPTIONS = Object.entries(REPORT_STATUS_LABELS);
+const STATUS_ORDER = Object.keys(REPORT_STATUS_LABELS);
+
+type SortBy = "recent" | "type" | "issued" | "status";
+
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: "recent", label: "Mais recentes" },
+  { value: "type", label: "Tipo" },
+  { value: "issued", label: "Data de emissão" },
+  { value: "status", label: "Status" },
+];
 
 export function ReportsListPage() {
   const { profile } = useAuth();
   const [reports, setReports] = useState<(Report & { companies?: { legal_name: string } })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("recent");
 
   useEffect(() => {
     api
@@ -20,6 +37,36 @@ export function ReportsListPage() {
       .then(setReports)
       .finally(() => setLoading(false));
   }, []);
+
+  const searchTerm = search.trim().toLowerCase();
+  const filteredReports = reports.filter((r) => {
+    if (statusFilter && r.status !== statusFilter) return false;
+    if (searchTerm) {
+      const haystack = [r.name, r.report_number, r.description, r.companies?.legal_name].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(searchTerm)) return false;
+    }
+    return true;
+  });
+
+  // Reports without an issue date (draft/in review — see reports/routes.ts,
+  // valid_until/issued_at are only set once a laudo is actually signed) sort
+  // to the end when ordering by emission date instead of clustering at "0".
+  const sortedReports = [...filteredReports].sort((a, b) => {
+    switch (sortBy) {
+      case "type":
+        return a.name.localeCompare(b.name, "pt-BR");
+      case "issued":
+        if (!a.issued_at && !b.issued_at) return 0;
+        if (!a.issued_at) return 1;
+        if (!b.issued_at) return -1;
+        return new Date(b.issued_at).getTime() - new Date(a.issued_at).getTime();
+      case "status":
+        return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+      case "recent":
+      default:
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+  });
 
   return (
     <div>
@@ -30,6 +77,25 @@ export function ReportsListPage() {
             <Button>Novo laudo</Button>
           </Link>
         )}
+      </div>
+
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nome, número ou empresa..." />
+        <select style={{ ...inputStyle, flex: "0 1 200px" }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="">Status — todos</option>
+          {STATUS_OPTIONS.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select style={{ ...inputStyle, flex: "0 1 200px" }} value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              Ordenar por: {option.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {loading ? (
@@ -48,9 +114,13 @@ export function ReportsListPage() {
         <Card>
           <p>Nenhum laudo ainda. Crie o primeiro laudo para gerar o link de campo.</p>
         </Card>
+      ) : filteredReports.length === 0 ? (
+        <Card>
+          <p>Nenhum laudo encontrado para esse filtro.</p>
+        </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {reports.map((r) => (
+          {sortedReports.map((r) => (
             <Link key={r.id} to={`/app/reports/${r.id}`} style={{ textDecoration: "none", color: "inherit" }}>
               <Card style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
                 <div style={{ minWidth: 0 }}>
